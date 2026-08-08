@@ -1,20 +1,34 @@
 package com.puk3p.koth
 
+import com.puk3p.koth.arena.ArenaManager
+import com.puk3p.koth.config.ConfigManager
+import com.puk3p.koth.hooks.FactionsHook
+import com.puk3p.koth.listeners.PlayerListener
+import com.puk3p.koth.services.DiscordService
+import com.puk3p.koth.services.RewardService
+import com.puk3p.koth.tasks.CaptureTickTask
+import com.puk3p.koth.tournament.TournamentManager
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.logging.Level
 
 class KoTHPlugin : JavaPlugin() {
 
-    // We will initialize these managers shortly
-    // lateinit var configManager: ConfigManager
-    // lateinit var arenaManager: ArenaManager
-    // lateinit var schedulerManager: SchedulerManager
-    // lateinit var tournamentManager: TournamentManager
+    lateinit var configManager: ConfigManager
+    lateinit var arenaManager: ArenaManager
+    lateinit var tournamentManager: TournamentManager
+    lateinit var rewardService: RewardService
+    lateinit var discordService: DiscordService
+    lateinit var schedulerManager: com.puk3p.koth.scheduler.KothScheduler
+
+    var factionsHook: FactionsHook? = null
 
     var factionsEnabled = false
         private set
 
     var placeholderAPIEnabled = false
+        private set
+
+    var premiumVanishHook: com.puk3p.koth.hooks.PremiumVanishHook? = null
         private set
 
     override fun onEnable() {
@@ -23,35 +37,55 @@ class KoTHPlugin : JavaPlugin() {
         checkDependencies()
 
         // 1. Load Configurations
-        // configManager = ConfigManager(this)
-        // configManager.loadAll()
+        configManager = ConfigManager(this)
+        configManager.loadAll()
 
-        // 2. Initialize Managers
-        // arenaManager = ArenaManager(this)
-        // tournamentManager = TournamentManager(this)
-        // schedulerManager = SchedulerManager(this)
+        // 2. Initialize Managers & Services
+        arenaManager = ArenaManager(this)
+        arenaManager.loadArenas()
+
+        tournamentManager = TournamentManager(this)
+        rewardService = RewardService(this)
+        discordService = DiscordService(this)
+
+        // Add Scheduler
+        schedulerManager = com.puk3p.koth.scheduler.KothScheduler(this)
+        schedulerManager.loadSchedules()
+
+
+        if (factionsEnabled) {
+            factionsHook = FactionsHook()
+        }
 
         // 3. Register Listeners
-        // server.pluginManager.registerEvents(PlayerListener(this), this)
-        // server.pluginManager.registerEvents(ProtectionListener(this), this)
+        server.pluginManager.registerEvents(PlayerListener(this), this)
+        // Add the ProtectionListener for tournament mode restrictions
+        server.pluginManager.registerEvents(com.puk3p.koth.listeners.ProtectionListener(this), this)
 
         // 4. Register Commands
-        // getCommand("koth")?.setExecutor(KothCommand(this))
+        val kothCommand = com.puk3p.koth.commands.KothCommand(this)
+        getCommand("koth")?.setExecutor(kothCommand)
+        getCommand("koth")?.tabCompleter = kothCommand
 
         // 5. Register PlaceholderAPI Hook
         if (placeholderAPIEnabled) {
-            // PlaceholderAPIHook(this).register()
+            com.puk3p.koth.hooks.PlaceholderAPIHook(this).register()
         }
 
+        // 6. Start Core Tasks
+        // This runs our capture logic every 1 second (20 ticks)
+        CaptureTickTask(this).runTaskTimer(this, 20L, 20L)
+        schedulerManager.startTask()
         logger.info("KoTH Plugin has been successfully enabled.")
     }
 
     override fun onDisable() {
         logger.info("Disabling KoTH Plugin...")
 
-        // Safely shut down active arenas and save data
-        // arenaManager.shutdownAll()
-        // schedulerManager.cancelAllTasks()
+        // Ensure arenas are reset when plugin reloads
+        if (::arenaManager.isInitialized) {
+            arenaManager.clearArenas()
+        }
 
         logger.info("KoTH Plugin disabled.")
     }
@@ -68,5 +102,11 @@ class KoTHPlugin : JavaPlugin() {
             placeholderAPIEnabled = true
             logger.info("Hooked into PlaceholderAPI successfully.")
         }
+
+        if (server.pluginManager.getPlugin("PremiumVanish") != null) {
+            premiumVanishHook = com.puk3p.koth.hooks.PremiumVanishHook()
+            logger.info("Hooked into PremiumVanish successfully.")
+        }
+
     }
 }

@@ -3,7 +3,7 @@ version: 1.0.0
 main: com.puk3p.koth.KoTHPlugin
 author: Puk3p
 description: Advanced KoTH Plugin optimized for large faction servers.
-softdepend: [Factions, PlaceholderAPI]
+softdepend: [Factions, PlaceholderAPI, PremiumVanish]
 
 commands:
   koth:

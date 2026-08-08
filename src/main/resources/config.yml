@@ -9,73 +9,243 @@ settings:
 discord:
   enabled: false
   webhook-url: "https://discord.com/api/webhooks/your-webhook-url-here"
+  server-ip: "play.puk3p.ro" # Appears in the embed footer
+  footer-text: "KoTH Network" # Appears next to the IP
   colors:
     started: "#00FF00"
     captured: "#FFA500"
     ended: "#FF0000"
 
-# ========================================== #
-#               KoTH Types                   #
-# ========================================== #
-# You can create as many types as you want here.
 types:
-  # Normal KoTH example
+  # ======================================== #
+  # Standard KoTH                            #
+  # ======================================== #
   koth:
-    capture-time: 300 # In seconds (5 minutes)
-    knock-behavior: "PAUSE" # Options: PAUSE, RESET (when capturer gets knocked off)
-    rewards:
-      - "give %player% diamond 16"
-      - "eco give %player% 5000"
+    capture-time: 300
+    knock-behavior: "PAUSE"
+    minimum-players-online: 10
+    max-run-time: 3600
+
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: false
+      fall-damage: false
+
+    command-restrictions:
+      enabled: true
+      mode: "BLACKLIST" # Options: BLACKLIST, WHITELIST
+      blocked-commands:
+        - "ec"
+        - "enderchest"
+        - "pv"
+        - "f home"
+        - "spawn"
+        - "home"
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&b&lCapturing %arena% &8» &f%time%"
+      title-on-start:
+        enabled: true
+        title: "&a&lKOTH STARTED"
+        subtitle: "&e%arena% &7is now active!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lKOTH CAPTURED"
+        subtitle: "&e%player% &7has captured &e%arena%!"
+      firework-on-capture: true
+
     sounds:
-      start: "ENDERDRAGON_GROWL"
-      capture-tick: "CLICK"
-      captured: "LEVEL_UP"
+      start:
+        sound: "ENDERDRAGON_GROWL"
+        volume: 1.0
+        pitch: 1.0
+      capturing-tick:
+        enabled: true
+        sound: "CLICK"
+        volume: 0.5
+        pitch: 1.5
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 0.8
+        pitch: 0.5
+      captured:
+        sound: "LEVEL_UP"
+        volume: 1.0
+        pitch: 1.0
+
+    rewards:
+      mode: "ALL" # Options: ALL (runs all), CHANCE (RNG based on percentages below)
+      commands:
+        - command: "give %player% diamond 16"
+          chance: 100.0
+        - command: "eco give %player% 5000"
+          chance: 100.0
+
     tournament-mode:
       enabled: false
 
-  # High-tier KoTH example
+  # ======================================== #
+  # Super KoTH - High Tier                   #
+  # ======================================== #
   superkoth:
-    capture-time: 600 # 10 minutes
+    capture-time: 600
     knock-behavior: "RESET"
-    rewards:
-      - "crate give %player% legendary 3"
-      - "eco give %player% 50000"
+    minimum-players-online: 25
+    max-run-time: 7200
+
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: true # Stricter: Block enderpearls completely inside the zone
+      fall-damage: false
+
+    command-restrictions:
+      enabled: true
+      mode: "BLACKLIST"
+      blocked-commands:
+        - "ec"
+        - "enderchest"
+        - "pv"
+        - "f home"
+        - "spawn"
+        - "home"
+        - "fix"
+        - "feed"
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&c&lCapturing %arena% &8» &f%time%"
+      title-on-start:
+        enabled: true
+        title: "&c&lSUPER KOTH STARTED"
+        subtitle: "&e%arena% &7is now active! High tier rewards!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lSUPER KOTH CAPTURED"
+        subtitle: "&e%player% &7dominated &e%arena%!"
+      firework-on-capture: true
+
     sounds:
-      start: "WITHER_SPAWN"
-      capture-tick: "NOTE_PLING"
-      captured: "ENDERDRAGON_DEATH"
+      start:
+        sound: "WITHER_SPAWN"
+        volume: 1.0
+        pitch: 0.8
+      capturing-tick:
+        enabled: true
+        sound: "NOTE_PLING"
+        volume: 0.7
+        pitch: 2.0
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 1.0
+        pitch: 0.5
+      captured:
+        sound: "ENDERDRAGON_DEATH"
+        volume: 1.0
+        pitch: 1.0
+
+    rewards:
+      mode: "CHANCE" # RNG based rewards
+      commands:
+        - command: "eco give %player% 50000"
+          chance: 100.0
+        - command: "crate give %player% legendary 3"
+          chance: 100.0
+        - command: "crate give %player% admin 1"
+          chance: 15.0 # 15% chance to win a super rare key!
+
     tournament-mode:
       enabled: false
 
-  # Special Elimination/Tournament KoTH example
+  # ======================================== #
+  # Tournament Mode - Elimination Event      #
+  # ======================================== #
   tournament:
     capture-time: 900
     knock-behavior: "PAUSE"
+    minimum-players-online: 30
+    max-run-time: 7200
+
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: true
+      fall-damage: true # It's a PvP event, fall damage matters here!
+
+    command-restrictions:
+      enabled: true
+      mode: "BLACKLIST"
+      blocked-commands:
+        - "ec"
+        - "enderchest"
+        - "bp"
+        - "backpack"
+        - "back"
+        - "home"
+        - "spawn"
+        - "tpa"
+        - "tpahere"
+        - "f home"
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&6&lTournament %arena% &8» &f%time%"
+      title-on-start:
+        enabled: true
+        title: "&6&lTOURNAMENT STARTED"
+        subtitle: "&eFight for %arena%!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lTOURNAMENT WON"
+        subtitle: "&e%player% &7is the champion of &e%arena%!"
+      firework-on-capture: true
+
+    sounds:
+      start:
+        sound: "ENDERDRAGON_GROWL"
+        volume: 1.0
+        pitch: 0.5
+      capturing-tick:
+        enabled: true
+        sound: "CLICK"
+        volume: 0.8
+        pitch: 1.0
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 1.0
+        pitch: 0.5
+      captured:
+        sound: "LEVEL_UP"
+        volume: 1.0
+        pitch: 0.5
+
     rewards:
-      - "crate give %player% event 1"
+      mode: "ALL"
+      commands:
+        - command: "crate give %player% event 1"
+          chance: 100.0
+
     tournament-mode:
       enabled: true
-      registration-time: 300 # 5 minutes to do /koth join
+      registration-time: 300
       allow-spectator: false
-      command-restrictions:
-        enabled: true
-        blocked-commands:
-          - "ec"
-          - "enderchest"
-          - "bp"
-          - "backpack"
-          - "back"
-          - "home"
-          - "spawn"
-          - "tpa"
-          - "tpahere"
-          - "f home"
-      arena-protection:
-        block-placing: false
-        block-breaking: false
-        buckets: false
-        pearls: false
-        lava: false
-        water: false
-        tnt: false
-        pistons: false

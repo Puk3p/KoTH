@@ -1,8 +1,12 @@
 package com.puk3p.koth.tasks
 
 import com.puk3p.koth.KoTHPlugin
-import com.puk3p.koth.arena.ArenaState
+import com.puk3p.koth.enums.ArenaState
+import com.puk3p.koth.utils.ActionBarUtil
 import org.bukkit.Bukkit
+import org.bukkit.Color
+import org.bukkit.FireworkEffect
+import org.bukkit.entity.Firework
 import org.bukkit.scheduler.BukkitRunnable
 import java.util.UUID
 
@@ -12,27 +16,50 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         val activeArena = plugin.arenaManager.getActiveArena() ?: return
 
         if (activeArena.state == ArenaState.ENDED || activeArena.state == ArenaState.WAITING) return
+        if (activeArena.isRegistrationOpen) return
 
-        val playersInside = activeArena.playersInside
+        // NEW: Enforce Max Run Time (Time Limit)
+        activeArena.totalActiveSeconds++
+        val maxRunTime = plugin.configManager.config.getInt("types.${activeArena.type}.max-run-time", 0)
 
-        if (playersInside.isEmpty()) {
+        if (maxRunTime > 0 && activeArena.totalActiveSeconds >= maxRunTime) {
+            handleTimeLimitExceeded(activeArena)
+            return
+        }
+
+        // VANISH FIX: Filter out offline, dead, and vanished staff members!
+        val validPlayers = activeArena.playersInside.filter { uuid ->
+            val p = Bukkit.getPlayer(uuid)
+            p != null && !p.isDead && (plugin.premiumVanishHook?.isVanished(p) != true)
+        }.toMutableSet()
+
+        if (validPlayers.isEmpty()) {
             handleEmptyZone(activeArena)
             return
         }
 
-        // Tournament mode elimination check (remove spectators if any snuck in)
         if (isTournamentMode(activeArena)) {
-            playersInside.removeIf { plugin.tournamentManager.isEliminated(it) }
+            validPlayers.removeIf { plugin.tournamentManager.isEliminated(it) }
         }
 
-        if (playersInside.isEmpty()) return
+        if (validPlayers.isEmpty()) return
 
-        if (playersInside.size == 1) {
-            val playerUUID = playersInside.first()
+        if (validPlayers.size == 1) {
+            val playerUUID = validPlayers.first()
             handleCapturing(activeArena, playerUUID)
         } else {
             handleContested(activeArena)
         }
+    }
+
+    private fun handleTimeLimitExceeded(arena: com.puk3p.koth.arena.Arena) {
+        // End the arena in a draw
+        arena.state = ArenaState.WAITING
+        arena.capturingPlayer = null
+        arena.playersInside.clear()
+        plugin.tournamentManager.openRegistration()
+
+        Bukkit.broadcastMessage("§c§lKoTH DRAW! §7The §c${arena.name} §7KoTH has exceeded the time limit without a winner.")
     }
 
     private fun handleEmptyZone(arena: com.puk3p.koth.arena.Arena) {
@@ -48,21 +75,19 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 "%arena%" to arena.name
             )
             Bukkit.broadcastMessage(msg)
-
             arena.capturingPlayer = null
         }
 
         if (behavior.equals("RESET", ignoreCase = true)) {
-            arena.resetCapture(defaultTime)
-        } else {
-            arena.state = ArenaState.RUNNING // Just paused
+            arena.remainingSeconds = defaultTime
         }
+        arena.state = ArenaState.RUNNING
     }
 
     private fun handleCapturing(arena: com.puk3p.koth.arena.Arena, playerUUID: UUID) {
         val player = Bukkit.getPlayer(playerUUID) ?: return
+        val typePath = "types.${arena.type}"
 
-        // New capper stepped on
         if (arena.capturingPlayer != playerUUID) {
             arena.capturingPlayer = playerUUID
             arena.state = ArenaState.RUNNING
@@ -77,14 +102,17 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
             Bukkit.broadcastMessage(msg)
         }
 
-        // Decrement timer
         arena.remainingSeconds--
 
-        // Check for win
+        // NEW: Action Bar Timer
+        if (plugin.configManager.config.getBoolean("$typePath.visuals.action-bar-timer", true)) {
+            val timeFormatted = formatTime(arena.remainingSeconds)
+            ActionBarUtil.sendActionBar(player, "§b§lCapturing ${arena.name} §8» §f$timeFormatted")
+        }
+
         if (arena.remainingSeconds <= 0) {
             arena.state = ArenaState.ENDED
 
-            // Call our custom event (will implement below)
             val event = com.puk3p.koth.event.KothCaptureEvent(arena, player)
             Bukkit.getPluginManager().callEvent(event)
 
@@ -97,17 +125,26 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 )
                 Bukkit.broadcastMessage(msg)
 
-                // Give Rewards
+                // NEW: Victory Fireworks
+                if (plugin.configManager.config.getBoolean("$typePath.visuals.firework-on-capture", true)) {
+                    spawnVictoryFirework(player)
+                }
+
+                val totalCaptureTime = plugin.configManager.config.getInt("$typePath.capture-time", 300)
+                plugin.discordService.sendKothCaptured(
+                    arena = arena,
+                    playerName = player.name,
+                    factionName = factionTag,
+                    durationStr = formatTime(totalCaptureTime)
+                )
+
                 plugin.rewardService.giveRewards(arena, player)
 
-                // End event
-                arena.isEnabled = false // or whatever reset logic you want
+                arena.state = ArenaState.WAITING
                 arena.capturingPlayer = null
                 arena.playersInside.clear()
+                plugin.tournamentManager.openRegistration()
             }
-        } else if (arena.remainingSeconds % 60 == 0 || arena.remainingSeconds <= 10) {
-            // Broadcast every minute or last 10 seconds
-            // Optional: add action bar here
         }
     }
 
@@ -117,7 +154,25 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
             val msg = plugin.configManager.messages.get("events.contested", "%arena%" to arena.name)
             Bukkit.broadcastMessage(msg)
         }
-        // In a contested state, timer does not decrement.
+
+        // Let players know it is paused
+        arena.playersInside.mapNotNull { Bukkit.getPlayer(it) }.forEach { p ->
+            ActionBarUtil.sendActionBar(p, "§c§lCONTESTED! §7Clear the zone!")
+        }
+    }
+
+    private fun spawnVictoryFirework(player: org.bukkit.entity.Player) {
+        val fw = player.world.spawn(player.location, Firework::class.java)
+        val meta = fw.fireworkMeta
+        meta.addEffect(FireworkEffect.builder()
+            .withColor(Color.ORANGE, Color.YELLOW)
+            .withFade(Color.RED)
+            .with(FireworkEffect.Type.BALL_LARGE)
+            .trail(true)
+            .flicker(true)
+            .build())
+        meta.power = 1
+        fw.fireworkMeta = meta
     }
 
     private fun isTournamentMode(arena: com.puk3p.koth.arena.Arena): Boolean {

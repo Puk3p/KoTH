@@ -1,6 +1,5 @@
 package com.puk3p.koth.hooks
 
-import com.massivecraft.factions.FPlayers
 import dev.kitteh.factions.FPlayers
 import org.bukkit.entity.Player
 
@@ -8,9 +7,11 @@ class FactionsHook {
 
     fun getFaction(player: Player): String {
         return try {
-            val fPlayer = FPlayers.getInstance().getByPlayer(player)
+            val fPlayer = FPlayers.fPlayers().get(player)
+
             if (fPlayer.hasFaction()) {
-                fPlayer.faction.tag
+                // Force it to a String so it matches "No Faction"
+                fPlayer.faction().tag().toString()
             } else {
                 "No Faction"
             }
@@ -21,8 +22,14 @@ class FactionsHook {
 
     fun getFactionId(player: Player): String {
         return try {
-            val fPlayer = FPlayers.getInstance().getByPlayer(player)
-            if (fPlayer.hasFaction()) fPlayer.faction.id else ""
+            val fPlayer = FPlayers.fPlayers().get(player)
+
+            if (fPlayer.hasFaction()) {
+                // Convert the UUID object to a String
+                fPlayer.faction().id().toString()
+            } else {
+                ""
+            }
         } catch (e: Exception) {
             ""
         }

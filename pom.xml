@@ -26,9 +26,19 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
+
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
         <!-- The repository for dev.kitteh:factions -->
         <repository>
             <id>dependency-download-releases</id>
+            <url>https://dependency.download/releases</url>
+        </repository>
+
+        <repository>
+            <id>kitteh-repo</id>
             <url>https://dependency.download/releases</url>
         </repository>
     </repositories>
@@ -41,12 +51,18 @@
             <version>${kotlin.version}</version>
         </dependency>
 
-        <!-- Spigot API (Paper 1.8.8 compatible) -->
+        <!-- Spigot API 1.8.8 (Pinned version with BungeeCord exclusion) -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.8.8-R0.1-SNAPSHOT</version>
+            <version>1.8.8-R0.1-20160221.082514-43</version>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>net.md-5</groupId>
+                    <artifactId>bungeecord-chat</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- PlaceholderAPI -->
@@ -54,6 +70,14 @@
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
             <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.github.LeonMangler</groupId>
+            <artifactId>PremiumVanishAPI</artifactId>
+            <version>2.9.18-2</version>
             <scope>provided</scope>
         </dependency>
 

@@ -53,6 +53,8 @@ class ConfigManager(private val plugin: KoTHPlugin) {
      */
     fun reload() {
         loadAll()
+        plugin.arenaManager.loadArenas()
+        plugin.schedulerManager.loadSchedules()
         plugin.logger.info("Configurations reloaded successfully.")
     }
 
