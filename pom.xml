@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.puk3p</groupId>
+    <artifactId>koth</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <kotlin.version>1.9.22</kotlin.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <repositories>
+        <!-- Spigot Repo -->
+        <repository>
+            <id>spigot-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
+        <!-- PlaceholderAPI Repo -->
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
+        <!-- The repository for dev.kitteh:factions -->
+        <repository>
+            <id>dependency-download-releases</id>
+            <url>https://dependency.download/releases</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- Kotlin Standard Library -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+
+        <!-- Spigot API (Paper 1.8.8 compatible) -->
+        <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>1.8.8-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- PlaceholderAPI -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- FactionsUUID Dependency -->
+        <dependency>
+            <groupId>dev.kitteh</groupId>
+            <artifactId>factions</artifactId>
+            <version>4.4.0</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>src/main/kotlin</sourceDirectory>
+        <plugins>
+            <!-- Kotlin Compiler -->
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>${kotlin.version}</version>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <jvmTarget>1.8</jvmTarget>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Compiler (Fallback/Java integration) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+
+            <!-- Shade Plugin (Include Kotlin Stdlib in the final JAR) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

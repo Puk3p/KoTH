@@ -1,0 +1,81 @@
+# ========================================== #
+#           KoTH Configuration               #
+# ========================================== #
+
+settings:
+  # The timezone used for the scheduler (e.g., Europe/Bucharest, America/New_York, UTC)
+  timezone: "UTC"
+
+discord:
+  enabled: false
+  webhook-url: "https://discord.com/api/webhooks/your-webhook-url-here"
+  colors:
+    started: "#00FF00"
+    captured: "#FFA500"
+    ended: "#FF0000"
+
+# ========================================== #
+#               KoTH Types                   #
+# ========================================== #
+# You can create as many types as you want here.
+types:
+  # Normal KoTH example
+  koth:
+    capture-time: 300 # In seconds (5 minutes)
+    knock-behavior: "PAUSE" # Options: PAUSE, RESET (when capturer gets knocked off)
+    rewards:
+      - "give %player% diamond 16"
+      - "eco give %player% 5000"
+    sounds:
+      start: "ENDERDRAGON_GROWL"
+      capture-tick: "CLICK"
+      captured: "LEVEL_UP"
+    tournament-mode:
+      enabled: false
+
+  # High-tier KoTH example
+  superkoth:
+    capture-time: 600 # 10 minutes
+    knock-behavior: "RESET"
+    rewards:
+      - "crate give %player% legendary 3"
+      - "eco give %player% 50000"
+    sounds:
+      start: "WITHER_SPAWN"
+      capture-tick: "NOTE_PLING"
+      captured: "ENDERDRAGON_DEATH"
+    tournament-mode:
+      enabled: false
+
+  # Special Elimination/Tournament KoTH example
+  tournament:
+    capture-time: 900
+    knock-behavior: "PAUSE"
+    rewards:
+      - "crate give %player% event 1"
+    tournament-mode:
+      enabled: true
+      registration-time: 300 # 5 minutes to do /koth join
+      allow-spectator: false
+      command-restrictions:
+        enabled: true
+        blocked-commands:
+          - "ec"
+          - "enderchest"
+          - "bp"
+          - "backpack"
+          - "back"
+          - "home"
+          - "spawn"
+          - "tpa"
+          - "tpahere"
+          - "f home"
+      arena-protection:
+        block-placing: false
+        block-breaking: false
+        buckets: false
+        pearls: false
+        lava: false
+        water: false
+        tnt: false
+        pistons: false

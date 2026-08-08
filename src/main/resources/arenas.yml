@@ -1,0 +1,32 @@
+# ========================================== #
+#               KoTH Arenas                  #
+# ========================================== #
+# This file is automatically updated when you use in-game commands.
+# You can safely edit it manually, but be sure to use /koth reload after.
+
+arenas:
+# Example output of how the plugin saves an arena:
+#
+# demon_hill:
+#   type: "superkoth"
+#   enabled: true
+#   world: "world"
+#   region:
+#     min-x: 100
+#     min-y: 60
+#     min-z: 100
+#     max-x: 110
+#     max-y: 65
+#     max-z: 110
+#   spawn:
+#     x: 105.5
+#     y: 61.0
+#     z: 105.5
+#     yaw: 90.0
+#     pitch: 0.0
+#   schedule:
+#     monday:
+#       - "18:00"
+#       - "22:00"
+#     friday:
+#       - "19:30"

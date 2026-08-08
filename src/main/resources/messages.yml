@@ -1,0 +1,33 @@
+prefix: "&8[&bKoTH&8] &7"
+
+general:
+  no-permission: "&cYou do not have permission to execute this command."
+  player-only: "&cThis command can only be used by players."
+  invalid-args: "&cInvalid arguments. Usage: %usage%"
+  reloaded: "&aPlugin configurations reloaded successfully."
+
+admin:
+  arena-created: "&aArena &e%arena% &asuccessfully created as type &e%type%&a."
+  pos1-set: "&aPosition 1 set for region selection."
+  pos2-set: "&aPosition 2 set for region selection."
+  arena-not-found: "&cArena &e%arena% &cdoes not exist."
+  type-not-found: "&cKoTH type &e%type% &cwas not found in config.yml."
+
+events:
+  started: "&aThe &e%type% &aevent at &e%arena% &ahas started! Capture it now!"
+  stopped: "&cThe KoTH event at &e%arena% has been forcefully stopped."
+  capturing: "&e%player% &7from &e%faction% &7is capturing &b%arena%&7! (&e%time% &7left)"
+  captured: "&a&l%arena% CAPTURED! &e%player% &7from &e%faction% &7won the event!"
+  lost-control: "&c%player% lost control of %arena%!"
+  contested: "&cThe KoTH %arena% is contested! Multiple players are in the zone!"
+
+tournament:
+  registration-opened: "&aRegistration for the Tournament KoTH &e%arena% &ahas opened! Type &b/koth join &ato enter! (&e%time% &aleft)"
+  registration-closed: "&cRegistration for %arena% has ended! Let the battle begin!"
+  joined: "&aYou have successfully registered for the KoTH event."
+  already-joined: "&cYou are already registered for this event."
+  left: "&eYou have left the KoTH event registration."
+  eliminated: "&cYou have died and been eliminated from the KoTH event! No rejoining."
+  spectate-denied: "&cSpectating is disabled. You cannot enter the arena."
+  not-registered: "&cRegistration has ended. You cannot enter the arena."
+  command-blocked: "&cYou cannot use that command while participating in a KoTH event."
