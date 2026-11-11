@@ -1,102 +1,181 @@
 package com.puk3p.koth.listeners
 
 import com.puk3p.koth.KoTHPlugin
+import org.bukkit.Location
+import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.PlayerDeathEvent
+import org.bukkit.event.player.PlayerChangedWorldEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.event.player.PlayerRespawnEvent
 import org.bukkit.event.player.PlayerTeleportEvent
+import org.bukkit.event.vehicle.VehicleMoveEvent
+import java.util.UUID
 
+/**
+ * Keeps the active arena's `playersInside` in sync with where players actually are.
+ */
 class PlayerListener(private val plugin: KoTHPlugin) : Listener {
 
+    /**
+     * KOTH Arena: pushes back players who aren't in the event when they walk into the zone.
+     * Runs at HIGH (not MONITOR) because it cancels the event.
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    fun onPlayerMoveCheck(event: PlayerMoveEvent) {
+        val to = event.to ?: return
+        if (!changedBlock(event.from, to)) return
+        if (isEntryDenied(event.player, event.from, to)) {
+            // Push them back
+            event.isCancelled = true
+        }
+    }
+
+    /** Same rule for teleports (/tpa to a participant, pearls, ...). */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    fun onPlayerTeleportCheck(event: PlayerTeleportEvent) {
+        val to = event.to ?: return
+        if (isEntryDenied(event.player, event.from, to)) {
+            event.isCancelled = true
+        }
+    }
+
+    /** True (and tells the player why) when [player] crosses into the active zone but may not count there. */
+    private fun isEntryDenied(player: Player, from: Location, to: Location): Boolean {
+        val arenas = plugin.arenaManager
+        val arena = arenas.getActiveArena() ?: return false
+        if (!arena.region.contains(to) || arena.region.contains(from)) return false
+        if (arenas.canEnter(arena, player.uniqueId) || isStaff(player)) return false
+
+        // Walking against the border retries several times a second; don't flood the chat
+        val now = System.currentTimeMillis()
+        val last = lastDeniedMessage[player.uniqueId]
+        if (last == null || now - last >= DENIED_MESSAGE_COOLDOWN_MS) {
+            lastDeniedMessage[player.uniqueId] = now
+            player.sendMessage(plugin.kothArena.prefixed("zone-denied"))
+        }
+        return true
+    }
+
+    /** Tracking only; MONITOR sees the final, uncancelled movement. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onPlayerMove(event: PlayerMoveEvent) {
         val to = event.to ?: return
-        val from = event.from
-
-        if (to.blockX == from.blockX && to.blockY == from.blockY && to.blockZ == from.blockZ) return
-
-        handleMovement(event.player, to, event)
+        // Only check if they moved a full block to save CPU
+        if (!changedBlock(event.from, to)) return
+        updateZone(event.player, to)
     }
 
-    // EXPLOIT FIX: If they enderpearl or /tpa into the zone!
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    /** Covers pearls and other teleports both into and out of the zone. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onPlayerTeleport(event: PlayerTeleportEvent) {
         val to = event.to ?: return
-        handleMovement(event.player, to, event)
-    }
-
-    // EXPLOIT FIX: If they log in directly inside the active KoTH zone!
-    @EventHandler
-    fun onPlayerJoin(event: PlayerJoinEvent) {
-        val player = event.player
-        val activeArena = plugin.arenaManager.getActiveArena() ?: return
-
-        if (activeArena.region.contains(player.location)) {
-            val isTournament = plugin.configManager.config.getBoolean("types.${activeArena.type}.tournament-mode.enabled", false)
-            if (isTournament && plugin.tournamentManager.isRegistrationClosed() && !plugin.tournamentManager.isParticipant(player.uniqueId)) {
-
-                // VANISH FIX: Allow admins and vanished players to log in inside the zone
-                if (player.hasPermission("koth.admin") || plugin.premiumVanishHook?.isVanished(player) == true) {
-                    activeArena.playersInside.add(player.uniqueId)
-                } else {
-                    // Illegal entry: Teleport them to safety (server spawn)
-                    player.teleport(player.world.spawnLocation)
-                    player.sendMessage(plugin.configManager.messages.get("tournament.not-registered"))
-                }
-            } else {
-                activeArena.playersInside.add(player.uniqueId)
-            }
-        }
-    }
-
-    @EventHandler
-    fun onPlayerQuit(event: PlayerQuitEvent) {
-        plugin.arenaManager.getActiveArena()?.playersInside?.remove(event.player.uniqueId)
-    }
-
-    @EventHandler
-    fun onPlayerDeath(event: PlayerDeathEvent) {
-        val player = event.entity
-        plugin.arenaManager.getActiveArena()?.playersInside?.remove(player.uniqueId)
-
-        val activeArena = plugin.arenaManager.getActiveArena() ?: return
-        if (plugin.configManager.config.getBoolean("types.${activeArena.type}.tournament-mode.enabled", false)) {
-            if (plugin.tournamentManager.isParticipant(player.uniqueId)) {
-                plugin.tournamentManager.eliminatePlayer(player.uniqueId)
-                player.sendMessage(plugin.configManager.messages.get("tournament.eliminated"))
-            }
-        }
+        // Teleported away by something else: out of the KOTH Arena (checked first, so the zone update sees it)
+        plugin.kothArena.onTeleport(event.player, event.from, to, event.cause)
+        updateZone(event.player, to)
     }
 
     /**
-     * Unified logic for Move and Teleport events to ensure strict checking.
+     * Portals fire PlayerPortalEvent, which the teleport handlers above don't receive, so a player
+     * stepping into a portal inside the zone would stay counted until they moved in the other world.
      */
-    private fun handleMovement(player: org.bukkit.entity.Player, to: org.bukkit.Location, event: org.bukkit.event.player.PlayerMoveEvent) {
-        val activeArena = plugin.arenaManager.getActiveArena() ?: return
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onWorldChange(event: PlayerChangedWorldEvent) {
+        val player = event.player
+        plugin.kothArena.onWorldChange(player)
+        updateZone(player, player.location)
+    }
 
-        val isInside = activeArena.region.contains(to)
-        val wasInside = activeArena.playersInside.contains(player.uniqueId)
+    /** PlayerMoveEvent doesn't fire for riders, so track players on horses, minecarts and boats. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onVehicleMove(event: VehicleMoveEvent) {
+        val rider = event.vehicle.passenger as? Player ?: return
+        if (!changedBlock(event.from, event.to)) return
+        updateZone(rider, event.to)
+    }
 
-        if (isInside && !wasInside) {
-            val isTournament = plugin.configManager.config.getBoolean("types.${activeArena.type}.tournament-mode.enabled", false)
-            if (isTournament && plugin.tournamentManager.isRegistrationClosed() && !plugin.tournamentManager.isParticipant(player.uniqueId)) {
-
-                // VANISH FIX: Allow admins and vanished players to fly into the zone
-                if (player.hasPermission("koth.admin") || plugin.premiumVanishHook?.isVanished(player) == true) {
-                    // Let them pass silently
-                } else {
-                    player.sendMessage(plugin.configManager.messages.get("tournament.not-registered"))
-                    event.isCancelled = true // Push them back
-                    return
-                }
-            }
-            activeArena.playersInside.add(player.uniqueId)
-        } else if (!isInside && wasInside) {
-            activeArena.playersInside.remove(player.uniqueId)
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPlayerJoin(event: PlayerJoinEvent) {
+        val player = event.player
+        // Logged out while in the KOTH Arena: they'd log back in inside it, so send them to the exit.
+        // One tick later, because teleporting during the join event isn't reliable.
+        val loginExit = plugin.kothArena.takeLoginLocation(player.uniqueId)
+            ?: outsiderInEventZone(player) // logged in inside a running KOTH Arena zone without being in it
+        if (loginExit != null) {
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (player.isOnline) player.teleport(loginExit)
+            })
+            return
         }
+        updateZone(player, player.location)
+    }
+
+    /** The exit location if [player] stands in a running KOTH Arena zone they may not be in. */
+    private fun outsiderInEventZone(player: Player): Location? {
+        val arena = plugin.arenaManager.getActiveArena() ?: return null
+        if (!plugin.kothArena.isEventArena(arena) || !arena.region.contains(player.location)) return null
+        if (plugin.arenaManager.canEnter(arena, player.uniqueId) || isStaff(player)) return null
+        player.sendMessage(plugin.kothArena.prefixed("zone-denied"))
+        return plugin.kothArena.exitLocation()
+    }
+
+    /** Staff may stand in any zone (they never count there, see CaptureTickTask.countsInZone). */
+    private fun isStaff(player: Player): Boolean {
+        return player.hasPermission("koth.bypass") || player.hasPermission("koth.admin") ||
+            player.getMetadata("vanished").any { it.asBoolean() }
+    }
+
+    /** KOTH Arena: players who died in the event respawn at the exit location. */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    fun onPlayerRespawnLocation(event: PlayerRespawnEvent) {
+        plugin.kothArena.takeRespawnLocation(event.player.uniqueId)?.let { event.respawnLocation = it }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPlayerRespawn(event: PlayerRespawnEvent) {
+        updateZone(event.player, event.respawnLocation)
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPlayerQuit(event: PlayerQuitEvent) {
+        val uuid = event.player.uniqueId
+        plugin.arenaManager.getActiveArena()?.playersInside?.remove(uuid)
+        // Logging out means leaving the KOTH Arena for good
+        plugin.kothArena.onQuit(uuid)
+        lastDeniedMessage.remove(uuid)
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPlayerDeath(event: PlayerDeathEvent) {
+        val player = event.entity
+        plugin.arenaManager.getActiveArena()?.playersInside?.remove(player.uniqueId)
+        // KOTH Arena: eliminated, respawns at the exit location
+        plugin.kothArena.onDeath(player)
+    }
+
+    /** Adds or removes the player depending on whether [location] is inside the active zone. */
+    private fun updateZone(player: Player, location: Location) {
+        val arena = plugin.arenaManager.getActiveArena() ?: return
+        val uuid = player.uniqueId
+        if (arena.region.contains(location) && plugin.arenaManager.canEnter(arena, uuid)) {
+            arena.playersInside.add(uuid)
+        } else {
+            arena.playersInside.remove(uuid)
+        }
+    }
+
+    private fun changedBlock(from: Location, to: Location): Boolean {
+        return from.blockX != to.blockX || from.blockY != to.blockY || from.blockZ != to.blockZ ||
+            from.world != to.world
+    }
+
+    private val lastDeniedMessage = HashMap<UUID, Long>()
+
+    companion object {
+        private const val DENIED_MESSAGE_COOLDOWN_MS = 2000L
     }
 }

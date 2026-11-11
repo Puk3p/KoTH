@@ -1,6 +1,6 @@
 # 🚩 KoTH (King of the Hill) — Ultimate Minecraft Plugin
 
-An enterprise-grade, highly customizable King of the Hill (KoTH) Spigot/Paper plugin built for competitive faction servers, network events, and mini-games. Designed for Paper/Spigot 1.8.8+, featuring high performance and deep integrations with FactionsUUID, PlaceholderAPI, PremiumVanish, and Discord Webhooks.
+A highly customizable King of the Hill (KoTH) plugin built for competitive faction servers, network events and mini-games. Made for Spigot/Paper 1.8.8, with integrations for FactionsUUID / SaberFactions, PlaceholderAPI, vanish plugins, DecentHolograms and Discord webhooks.
 
 ---
 
@@ -13,36 +13,41 @@ An enterprise-grade, highly customizable King of the Hill (KoTH) Spigot/Paper pl
 5. [Step-by-Step Arena Setup Guide](#️-step-by-step-arena-setup-guide)
 6. [Configuration (config.yml)](#️-configuration-configyml)
 7. [Scheduling & Arenas (arenas.yml)](#-scheduling--arenas-arenasyml)
-8. [Staff & Vanish Integration](#-staff--vanish-integration)
-9. [Discord Webhooks](#-discord-webhooks)
-10. [PlaceholderAPI Expansion](#-placeholderapi-expansion)
+8. [KOTH Arena (LMS-style event)](#️-koth-arena-lms-style-event)
+9. [Faction KoTH Wins (/fkoth)](#-faction-koth-wins-fkoth)
+10. [Staff & Vanish Integration](#️-staff--vanish-integration)
+11. [Discord Webhooks](#-discord-webhooks)
+12. [PlaceholderAPI Expansion](#-placeholderapi-expansion)
 
 ---
 
 ## ⚡ Features
 
-- **Modular Type System** — Create unlimited custom KoTH types (`koth`, `superkoth`, `tournament`, etc.), each with unique capture times, sounds, visuals, protections, and rewards.
-- **Capture Mechanics & Knock Behaviors** — Configurable `RESET` (timer resets on knock), `PAUSE` (timer pauses until re-entered), and `PENALTY` modes. Includes a maximum runtime limit to end stalemates in a draw.
-- **Tournament & Elimination Mode** — Automated pre-registration phase (`/koth join`), arena sweeping (teleports unregistered players to spawn), single-life elimination upon death, and blocked commands.
-- **Protection Flags Engine** — Per-type region flags for block breaking, block placing, bucket usage (lava/water), enderpearl throwing, fall damage, and PvP.
-- **Command Restriction Engine** — Restrict escape/utility commands (`/f home`, `/spawn`, `/ec`, `/pv`, `/tpa`) inside active capture zones with either `BLACKLIST` or `WHITELIST` modes.
-- **Staff & Vanish Integration** — Seamless integration with PremiumVanish and SuperVanish. Vanished staff members or admins can fly through capture zones without interrupting captures, triggering contests, or getting swept by tournament security.
-- **Visuals & Action Bar Engine** — Live action bar countdown timers, full-screen titles/subtitles with fade controls, and victory fireworks upon capture.
-- **Dynamic Sound Matrix** — Custom pitch and volume controls for every event stage (start, capturing-tick, contested, captured).
-- **Weighted Reward Engine** — Flexible reward engine supporting `ALL` (execute all commands) or `CHANCE` (percentage-based random roll for rare keys).
-- **Timezone-Aware Scheduler** — Automatically start KoTH events based on real-world schedules (`HH:mm`) with custom timezones (e.g., `Europe/Bucharest`, `UTC`, `America/New_York`). Includes minimum online player thresholds to prevent off-peak farming.
-- **Discord Rich Webhooks** — Auto-posting Discord announcements featuring ISO-8601 dynamic timestamps, server branding, and real-time 3D player head avatars fetched directly from `mc-heads.net`.
+- **Modular Type System** — Create unlimited custom KoTH types (`koth`, `superkoth`, `arena`, ...), each with its own capture time, sounds, visuals, protections, command restrictions and rewards.
+- **Faction Capture** — Players from the same faction capture together; a zone is only contested by players from different factions. Can be turned off for solo capture.
+- **Capture Mechanics & Knock Behaviors** — `RESET` (timer starts over when the holder loses the zone) or `PAUSE` (the next holder continues from where it stopped). A maximum run time ends stalemates in a draw.
+- **KOTH Arena (LMS-style event)** — `/koth join` before the start teleports players into the arena with invincibility and a countdown; command lock, single life, post-capture countdown and teleport out.
+- **Faction KoTH Wins** — Every capture adds a win to the winner's faction: `/fkoth` top and stats, a DecentHolograms top hologram, placeholders and an API for other plugins (e.g. DinoFtop). Wins follow faction renames and are removed on disband.
+- **Protection Flags Engine** — Per-type zone flags for block breaking/placing, buckets, enderpearls, fall damage, lava/water flow, TNT and pistons.
+- **Command Restriction Engine** — Restrict escape/utility commands (`/f home`, `/spawn`, `/ec`, `/pv`, `/tpa`) inside active capture zones with either `BLACKLIST` or `WHITELIST` mode.
+- **Staff & Vanish Integration** — Vanished staff, spectators and (optionally) creative players never capture or contest a zone.
+- **Visuals & Action Bar Engine** — Live action bar timer, `CONTESTED` warning, titles/subtitles with fade controls and victory fireworks.
+- **Dynamic Sound Matrix** — Custom volume and pitch for every stage (start, capturing-tick, contested, captured).
+- **Weighted Reward Engine** — `ALL` (run every command) or `CHANCE` (percentage roll per command, for rare keys).
+- **Timezone-Aware Scheduler** — Weekly schedules per arena (`HH:mm`) in any timezone (e.g. `Europe/Bucharest`), with minimum online player thresholds to prevent off-peak farming.
+- **Discord Rich Webhooks** — Announcements with timestamps, server branding and the winner's player head from `mc-heads.net`.
 
 ---
 
 ## 🔌 Dependencies & Compatibility
 
-| Dependency | Type | Required Version / Repository |
+| Dependency | Type | Notes |
 |---|---|---|
-| Spigot / Paper | Required | 1.8.8+ |
-| FactionsUUID | Soft Depend | `dev.kitteh:factions:4.4.0` |
-| PlaceholderAPI | Soft Depend | `me.clip:placeholderapi:2.11.5` |
-| PremiumVanish / SuperVanish | Soft Depend | `com.github.LeonMangler:PremiumVanishAPI:2.7.35` |
+| Spigot / Paper | Required | 1.8.8 |
+| FactionsUUID (1.6.9.5-U0.x) or SaberFactions | Soft Depend | Legacy `com.massivecraft.factions` API. Needed for faction capture and faction wins. |
+| PlaceholderAPI | Soft Depend | `%koth_...%` and `%fkoth_...%` placeholders, extra placeholders in rewards |
+| DecentHolograms | Soft Depend | Faction wins top hologram |
+| PremiumVanish / SuperVanish / Essentials | Optional | Detected through the standard `vanished` player metadata; no API needed |
 
 ---
 
@@ -53,11 +58,11 @@ An enterprise-grade, highly customizable King of the Hill (KoTH) Spigot/Paper pl
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/koth.git
-   cd koth
+   git clone https://github.com/Puk3p/KoTH.git
+   cd KoTH
    ```
 
-2. Build the project using Maven:
+2. Build the project using Maven (any JDK from 8 to 25):
 
    ```bash
    mvn clean package
@@ -72,8 +77,9 @@ An enterprise-grade, highly customizable King of the Hill (KoTH) Spigot/Paper pl
 ### Server Installation
 
 1. Place `koth-1.0.0.jar` into your Minecraft server's `plugins/` directory.
-2. (Optional) Install soft dependencies: FactionsUUID, PlaceholderAPI, and PremiumVanish.
-3. Start or restart the server to generate default configuration files.
+2. (Optional) Install soft dependencies: Factions, PlaceholderAPI, DecentHolograms.
+3. Coming from the **FKothWins** addon? Remove `FKothWins.jar`: its wins are imported automatically on the first start.
+4. Start or restart the server to generate the default configuration files.
 
 ---
 
@@ -83,25 +89,35 @@ An enterprise-grade, highly customizable King of the Hill (KoTH) Spigot/Paper pl
 
 | Command | Permission | Description |
 |---|---|---|
-| `/koth` | None | Displays the basic player help menu. |
-| `/koth join` | None | Registers the player for an active Tournament Mode KoTH during the registration phase. |
+| `/koth` | `koth.join` (default: everyone) | Displays the player help menu. |
+| `/koth join` | `koth.join` | Joins the KOTH Arena during its join phase (teleports you into the arena). |
+| `/koth leave` | `koth.join` | Leaves the KOTH Arena. You can't rejoin the same event. |
+| `/fkoth stats` | `fkoth.player` (default: everyone) | Your faction's KoTH wins. |
+| `/fkoth top` | `fkoth.player` | Top factions by KoTH wins. |
 
 ### Admin Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/koth pos1` | `koth.admin` | Sets the first corner of a selection area to your current position. |
-| `/koth pos2` | `koth.admin` | Sets the second corner of a selection area to your current position. |
-| `/koth create <name> <type>` | `koth.admin` | Creates a new arena using your selected points and assigns a type from `config.yml`. |
-| `/koth start <arena>` | `koth.start` or `koth.admin` | Manually triggers the start of a specific KoTH arena. |
-| `/koth stop` | `koth.stop` or `koth.admin` | Instantly stops the active KoTH event and resets all states. |
-| `/koth reload` | `koth.reload` or `koth.admin` | Reloads `config.yml`, `arenas.yml`, `messages.yml`, and resynchronizes schedules. |
+| `/koth pos1` / `/koth pos2` | `koth.admin` | Sets the corners of the capture zone to your current position. |
+| `/koth create <name> <type>` | `koth.admin` | Creates an arena from your selection with a type from `config.yml`. |
+| `/koth setspawn <name>` | `koth.admin` | Sets an arena's spawn point. |
+| `/koth delete <name>` | `koth.admin` | Deletes an arena. |
+| `/koth list` | `koth.admin` | Lists arenas with their type and state. |
+| `/koth setarena` / `/koth setexit` | `koth.admin` | Sets the KOTH Arena location / exit location (written into `config.yml`). |
+| `/koth start <arena>` | `koth.start` or `koth.admin` | Starts a KoTH (KOTH Arena types open `/koth join` first). |
+| `/koth stop [arena]` | `koth.stop` or `koth.admin` | Stops the running KoTH or KOTH Arena event. |
+| `/koth reload` | `koth.reload` or `koth.admin` | Reloads `config.yml`, `messages.yml`, `arenas.yml` and schedules. |
+| `/fkoth add <player> <n>` | `fkoth.admin` | Adds wins to a player's faction. |
+| `/fkoth remove <faction> <n>` / `set <faction> <n>` | `fkoth.admin` | Changes a faction's wins. |
+| `/fkoth sethologram` | `fkoth.admin` | Places the top factions hologram at your position. |
+| `/fkoth reload` / `debug` | `fkoth.admin` | Reloads configs / shows integration status. |
+
+`koth.bypass` (and `koth.admin`) ignore zone protections, command restrictions and the KOTH Arena command lock.
 
 ---
 
 ## 🛠️ Step-by-Step Arena Setup Guide
-
-To create a new KoTH arena in-game:
 
 1. **Set Corner 1** — Stand at the first corner of your capture zone and type:
 
@@ -109,264 +125,92 @@ To create a new KoTH arena in-game:
    /koth pos1
    ```
 
-2. **Set Corner 2** — Walk diagonally across to the opposite corner (covering the full Y-height of the cap zone) and type:
+2. **Set Corner 2** — Walk diagonally across to the opposite corner, a few blocks higher (the zone covers the whole height between the two corners), and type:
 
    ```
    /koth pos2
    ```
 
-3. **Instantiate Arena** — Run the create command using an arena name and a type key defined in `config.yml`:
+3. **Create the Arena** — Use an arena name and a type key defined in `config.yml`:
 
    ```
    /koth create nether koth
    ```
 
+   Zones lower than 3 blocks are extended upward automatically, so a jumping player doesn't leave the zone.
+
 ---
 
 ## ⚙️ Configuration (config.yml)
 
+The generated `config.yml` documents every option. The main parts:
+
 ```yaml
 settings:
   timezone: "Europe/Bucharest"
+  faction-capture: true      # same-faction players capture together
+  ignore-creative: true      # creative players don't capture or contest
 
 discord:
   enabled: true
   webhook-url: "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
   server-ip: "play.yourserver.net"
   footer-text: "KoTH Network"
-  colors:
-    started: "#00FF00"
-    captured: "#FFA500"
-    ended: "#FF0000"
 
 types:
   koth:
     capture-time: 300            # Seconds required to capture (5 mins)
-    knock-behavior: "PAUSE"      # Options: RESET, PAUSE, PENALTY
-    minimum-players-online: 10   # Requires at least 10 online players to start via schedule
+    knock-behavior: "PAUSE"      # Options: RESET, PAUSE
+    minimum-players-online: 10   # Scheduled starts need at least 10 players online
     max-run-time: 3600           # 1 hour limit before declaring a DRAW (0 = infinite)
 
-    protections:
+    protections:                 # true = protected inside the zone
       block-breaking: true
       block-placing: true
       bucket-use: true
       enderpearls: false
-      fall-damage: false
+      fall-damage: false         # false = no fall damage in the zone
+      lava-flow: false
+      water-flow: false
+      tnt: false
+      pistons: false
 
     command-restrictions:
       enabled: true
       mode: "BLACKLIST"          # Options: BLACKLIST, WHITELIST
-      blocked-commands:
-        - "ec"
-        - "enderchest"
-        - "pv"
-        - "f home"
-        - "spawn"
-        - "home"
+      blocked-commands: ["ec", "enderchest", "pv", "f home", "spawn", "home"]
 
     visuals:
       action-bar:
         enabled: true
         text: "&b&lCapturing %arena% &8» &f%time%"
-      title-on-start:
-        enabled: true
-        title: "&a&lKOTH STARTED"
-        subtitle: "&e%arena% &7is now active!"
-        fade-in: 10
-        stay: 40
-        fade-out: 10
-      title-on-capture:
-        enabled: true
-        title: "&6&lKOTH CAPTURED"
-        subtitle: "&e%player% &7(&b%faction%&7) has captured &e%arena%!"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
+      title-on-start: { enabled: true, title: "&a&lKOTH STARTED", subtitle: "&e%arena% &7is now active!", fade-in: 10, stay: 40, fade-out: 10 }
+      title-on-capture: { enabled: true, title: "&6&lKOTH CAPTURED", subtitle: "&e%player% &7has captured &e%arena%!" }
       firework-on-capture: true
 
     sounds:
-      start:
-        sound: "ENDERDRAGON_GROWL"
-        volume: 1.0
-        pitch: 1.0
-      capturing-tick:
-        enabled: true
-        sound: "CLICK"
-        volume: 0.5
-        pitch: 1.5
-      contested:
-        enabled: true
-        sound: "NOTE_BASS"
-        volume: 0.8
-        pitch: 0.5
-      captured:
-        sound: "LEVEL_UP"
-        volume: 1.0
-        pitch: 1.0
+      start: { sound: "ENDERDRAGON_GROWL", volume: 1.0, pitch: 1.0 }
+      capturing-tick: { enabled: true, sound: "CLICK", volume: 0.5, pitch: 1.5 }
+      contested: { enabled: true, sound: "NOTE_BASS", volume: 0.8, pitch: 0.5 }
+      captured: { sound: "LEVEL_UP", volume: 1.0, pitch: 1.0 }
 
     rewards:
-      mode: "ALL"                # Options: ALL, CHANCE
-      commands:
-        - command: "give %player% diamond 16"
-          chance: 100.0
-        - command: "eco give %player% 5000"
-          chance: 100.0
-
-    tournament-mode:
-      enabled: false
-
-  superkoth:
-    capture-time: 600
-    knock-behavior: "RESET"
-    minimum-players-online: 25
-    max-run-time: 7200
-
-    protections:
-      block-breaking: true
-      block-placing: true
-      bucket-use: true
-      enderpearls: true
-      fall-damage: false
-
-    command-restrictions:
-      enabled: true
-      mode: "BLACKLIST"
-      blocked-commands:
-        - "ec"
-        - "enderchest"
-        - "pv"
-        - "f home"
-        - "spawn"
-        - "home"
-        - "fix"
-
-    visuals:
-      action-bar:
-        enabled: true
-        text: "&c&lCapturing %arena% &8» &f%time%"
-      title-on-start:
-        enabled: true
-        title: "&c&lSUPER KOTH STARTED"
-        subtitle: "&e%arena% &7is now active!"
-        fade-in: 10
-        stay: 40
-        fade-out: 10
-      title-on-capture:
-        enabled: true
-        title: "&6&lSUPER KOTH CAPTURED"
-        subtitle: "&e%player% &7dominated &e%arena%!"
-      firework-on-capture: true
-
-    sounds:
-      start:
-        sound: "WITHER_SPAWN"
-        volume: 1.0
-        pitch: 0.8
-      capturing-tick:
-        enabled: true
-        sound: "NOTE_PLING"
-        volume: 0.7
-        pitch: 2.0
-      contested:
-        enabled: true
-        sound: "NOTE_BASS"
-        volume: 1.0
-        pitch: 0.5
-      captured:
-        sound: "ENDERDRAGON_DEATH"
-        volume: 1.0
-        pitch: 1.0
-
-    rewards:
-      mode: "CHANCE"             # Random roll percentage
+      mode: "CHANCE"             # ALL or CHANCE
       commands:
         - command: "eco give %player% 50000"
           chance: 100.0
-        - command: "crate give %player% legendary 3"
-          chance: 100.0
         - command: "crate give %player% admin 1"
           chance: 15.0
-
-    tournament-mode:
-      enabled: false
-
-  tournament:
-    capture-time: 900
-    knock-behavior: "PAUSE"
-    minimum-players-online: 30
-    max-run-time: 7200
-
-    protections:
-      block-breaking: true
-      block-placing: true
-      bucket-use: true
-      enderpearls: true
-      fall-damage: true
-
-    command-restrictions:
-      enabled: true
-      mode: "BLACKLIST"
-      blocked-commands:
-        - "ec"
-        - "enderchest"
-        - "bp"
-        - "backpack"
-        - "back"
-        - "home"
-        - "spawn"
-        - "tpa"
-
-    visuals:
-      action-bar:
-        enabled: true
-        text: "&6&lTournament %arena% &8» &f%time%"
-      title-on-start:
-        enabled: true
-        title: "&6&lTOURNAMENT STARTED"
-        subtitle: "&eFight for %arena%!"
-        fade-in: 10
-        stay: 40
-        fade-out: 10
-      title-on-capture:
-        enabled: true
-        title: "&6&lTOURNAMENT WON"
-        subtitle: "&e%player% &7is the champion of &e%arena%!"
-      firework-on-capture: true
-
-    sounds:
-      start:
-        sound: "ENDERDRAGON_GROWL"
-        volume: 1.0
-        pitch: 0.5
-      capturing-tick:
-        enabled: true
-        sound: "CLICK"
-        volume: 0.8
-        pitch: 1.0
-      contested:
-        enabled: true
-        sound: "NOTE_BASS"
-        volume: 1.0
-        pitch: 0.5
-      captured:
-        sound: "LEVEL_UP"
-        volume: 1.0
-        pitch: 0.5
-
-    rewards:
-      mode: "ALL"
-      commands:
-        - command: "crate give %player% event 1"
-          chance: 100.0
-
-    tournament-mode:
-      enabled: true
-      registration-time: 300
-      allow-spectator: false
 ```
+
+Reward placeholders: `%player%`, `%arena%`, `%faction%`, `%type%`, plus PlaceholderAPI placeholders.
 
 ---
 
 ## 📅 Scheduling & Arenas (arenas.yml)
 
-The schedule checks every 60 seconds against the configured timezone in `config.yml`.
+Arenas are saved to `arenas.yml` by `/koth create`; schedules are added by hand, then applied with `/koth reload`. Times use `settings.timezone`. Day keys are English day names (any case) or `daily`. Always quote times.
 
 ```yaml
 arenas:
@@ -382,63 +226,69 @@ arenas:
       max-y: 70
       max-z: 210
     schedule:
-      MONDAY:
-        - "18:00"
-        - "22:00"
-      WEDNESDAY:
-        - "20:00"
-      FRIDAY:
-        - "16:00"
-        - "21:00"
-      SATURDAY:
-        - "15:00"
-        - "19:00"
-        - "23:00"
-
-  castle:
-    type: "superkoth"
-    enabled: true
-    world: "world"
-    region:
-      min-x: 500
-      min-y: 70
-      min-z: 500
-      max-x: 520
-      max-y: 85
-      max-z: 520
-    schedule:
-      SUNDAY:
-        - "18:00"
+      monday: ["18:00", "22:00"]
+      friday: ["16:00", "21:00"]
+      daily: ["12:00"]
 ```
+
+Only one KoTH runs at a time: a slot that comes up while another KoTH is running is skipped (see the console). Arenas with `enabled: false` never start automatically.
+
+---
+
+## ⚔️ KOTH Arena (LMS-style event)
+
+Types with `koth-arena: true` (the `arena` type by default) run as an event, configured in the `koth-arena` section:
+
+1. **Join** — `/koth start` (or the schedule, `join-time` before the slot) announces the event. `/koth join` teleports the player to the arena location with their own inventory. Joined players are invincible, can't hit anyone and can only use `allowed-commands`. A countdown is broadcast (`KOTH începe în 3 minute!`, ...).
+2. **Fight** — When the countdown ends, invincibility is removed and the KoTH starts; only joined players can capture. Players camping in the zone who didn't join are sent out. Dying, logging out, `/koth leave`, being teleported away or walking out of `arena-radius` eliminates a player for good; dead players respawn at the exit location.
+3. **Capture** — The winner is announced globally. Everyone stays `post-capture-time` seconds (with a countdown), then is teleported to the exit location.
+
+Set the locations in-game with `/koth setarena` and `/koth setexit`.
+
+---
+
+## 🏆 Faction KoTH Wins (/fkoth)
+
+Every capture adds one win to the capturer's faction (`faction-wins` in `config.yml`). Players without a faction don't count by default.
+
+- `/fkoth top`, `/fkoth stats` and the `%fkoth_...%` placeholders.
+- A top factions hologram with DecentHolograms (`/fkoth sethologram`).
+- Wins follow a faction when it changes its tag and are removed when it disbands.
+- Other plugins read the wins through the `ro.puk3p.fkoth.api.FKothApi` service (the same API the FKothWins addon offered), e.g. DinoFtop.
 
 ---
 
 ## 🕵️ Staff & Vanish Integration
 
-- **Zero Capture Interference** — Vanished players inside a capture zone are automatically excluded from capture and contest calculations.
-- **Bypass Tournament Barriers** — Vanished staff or users with `koth.admin` are bypass-exempt from tournament registration sweeps.
-- **Pass-Through Security** — Flying into/out of capture regions in vanish will not produce chat/action bar triggers or block movement.
+- **Zero Capture Interference** — Vanished players (PremiumVanish, SuperVanish, Essentials), spectators and, by default, creative players inside a capture zone are excluded from capture and contest calculations.
+- **Pass-Through Security** — Vanished staff and players with `koth.bypass` / `koth.admin` can enter KOTH Arena zones and aren't swept out at the start of the fight.
 
 ---
 
 ## 🌐 Discord Webhooks
 
-When enabled, the plugin dispatches asynchronous POST requests to Discord featuring:
+When enabled, the plugin posts embeds asynchronously when a KoTH starts, is captured, or ends without a winner:
 
-- Real-time ISO-8601 timestamps.
-- Embedded 3D player head renders (`https://mc-heads.net/avatar/<PlayerName>/100`).
-- Custom server name & IP footers.
+- Timestamps and a `footer-text • server-ip` footer.
+- The winner's head (`https://mc-heads.net/avatar/<PlayerName>/100`) and Champion / Faction / Capture Time fields on captures.
+- Texts are editable in the `discord` section of `messages.yml`.
 
 ---
 
 ## 📊 PlaceholderAPI Expansion
 
-Use `%koth_<placeholder>%` in scoreboards, tablists, or chat formats:
+Use `%koth_<placeholder>%` in scoreboards, tablists or chat formats:
 
 | Placeholder | Return Value | Example Output |
 |---|---|---|
-| `%koth_active%` | Currently active KoTH arena name | `nether` |
+| `%koth_active%` | Running (or KOTH Arena) arena name | `nether` |
 | `%koth_status%` | Current state | `RUNNING`, `CONTESTED`, `WAITING` |
-| `%koth_capture_time%` | Remaining capture time | `04:15` |
-| `%koth_capturer%` | Capturing player's username | `Puk3p` |
-| `%koth_capturer_faction%` | Faction tag of the capturer | `Viper` |
+| `%koth_state%` | Current state, including KOTH Arena phases | `RUNNING`, `JOIN`, `POST_CAPTURE` |
+| `%koth_capture_time%` / `%koth_time_left%` | Remaining capture time | `04:15` |
+| `%koth_capturer%` / `%koth_capper%` | Capturing player's username | `Puk3p` |
+| `%koth_capturer_faction%` / `%koth_capper_faction%` | Faction tag of the capturer | `Viper` |
+| `%koth_players_in_zone%`, `%koth_contested%`, `%koth_in_zone%` | Zone details (`in_zone` for the viewer) | `3`, `true` |
+| `%koth_next%`, `%koth_next_time%`, `%koth_next_in%` | Next scheduled KoTH | `castle`, `Sun 18:00`, `2h 15m` |
+| `%koth_join_open%`, `%koth_join_time_left%`, `%koth_participants%`, `%koth_joined%` | KOTH Arena join phase | `true`, `03:00`, `12` |
+
+Faction wins use `%fkoth_<placeholder>%`: `faction_name`, `faction_wins`, `faction_rank`, `top_size`, `top_<n>_name`, `top_<n>_wins`, `player_faction_wins_<player>`.

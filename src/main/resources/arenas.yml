@@ -3,10 +3,15 @@
 # ========================================== #
 # This file is automatically updated when you use in-game commands.
 # You can safely edit it manually, but be sure to use /koth reload after.
-
-arenas:
-# Example output of how the plugin saves an arena:
-#
+# (Keep every line of this header starting with "# " so the plugin preserves it on save.)
+# ------------------------------------------ #
+# Schedules are edited by hand. Times use settings.timezone from config.yml.
+# Day keys: monday ... sunday, or daily. Always quote times: "18:00".
+# Only one KoTH runs at a time; a slot that comes up while another KoTH is
+# running is skipped (see the console). Arenas with enabled: false never auto-start.
+# For KOTH Arena types /koth join opens join-time before the slot; the KoTH starts on the slot.
+# ------------------------------------------ #
+# Example arena:
 # demon_hill:
 #   type: "superkoth"
 #   enabled: true
@@ -30,3 +35,7 @@ arenas:
 #       - "22:00"
 #     friday:
 #       - "19:30"
+#     daily:
+#       - "12:00"
+
+arenas:

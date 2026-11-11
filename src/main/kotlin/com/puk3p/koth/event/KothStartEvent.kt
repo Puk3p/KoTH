@@ -5,6 +5,9 @@ import org.bukkit.event.Cancellable
 import org.bukkit.event.Event
 import org.bukkit.event.HandlerList
 
+/**
+ * Fired right before a KoTH starts. Cancelling it keeps the arena idle.
+ */
 class KothStartEvent(val arena: Arena) : Event(), Cancellable {
 
     private var isCancelled = false

@@ -6,16 +6,144 @@ settings:
   # The timezone used for the scheduler (e.g., Europe/Bucharest, America/New_York, UTC)
   timezone: "UTC"
 
+  # true: players from the same faction capture together; the zone is only contested
+  #       when players from different factions (or factionless players) are in it.
+  # false: every player captures alone; any two players in the zone contest it.
+  # Has no effect without Factions installed (everyone captures alone).
+  faction-capture: true
+
+  # Spectators and vanished staff never capture or contest a zone. true: creative players don't
+  # either (they can't be killed). Set to false if you want to test a KoTH alone in creative.
+  ignore-creative: true
+
 discord:
   enabled: false
   webhook-url: "https://discord.com/api/webhooks/your-webhook-url-here"
   server-ip: "play.puk3p.ro" # Appears in the embed footer
   footer-text: "KoTH Network" # Appears next to the IP
+  username: "KoTH Alerts" # Name the webhook posts as
+  avatar-url: "https://mc-heads.net/avatar/MHF_Chest/100"
+  player-heads: true # Show the winner's head on capture embeds
   colors:
     started: "#00FF00"
     captured: "#FFA500"
     ended: "#FF0000"
 
+# ========================================== #
+#        Faction KoTH wins (/fkoth)          #
+# ========================================== #
+# Every capture adds 1 win to the capturer's faction. Formerly the FKothWins addon:
+# remove FKothWins.jar; on the first start its plugins/FKothWins/faction-wins.yml is
+# imported automatically. DinoFtop reads the wins through the same FKothApi service.
+# Placeholders keep their names: %fkoth_faction_wins%, %fkoth_top_1_name%, ...
+faction-wins:
+  enabled: true
+  storage-file: "faction-wins.yml"
+  # true: captures by players without a faction don't count; false: they go to "Wilderness"
+  ignore-no-faction-winner: true
+  # Remove a faction's wins when it disbands
+  delete-wins-on-faction-disband: true
+  # /fkoth add <player> also works for offline players (looked up in Factions' data)
+  allow-offline-player-lookup: true
+  # Entries shown by /fkoth top
+  top-size: 10
+  # Top factions hologram (needs DecentHolograms)
+  hologram:
+    enabled: true
+    id: "fkoth_top5"
+    refresh-seconds: 15
+    entries: 5
+    title: "&6&lTop 5 KOTH Factions"
+    line-format: "&e#%position%. &f%faction% &7- &6%wins%"
+    empty-line-format: "&e#%position%. &7-"
+  # Where the hologram stands. Set it in-game with /fkoth sethologram. Empty world = no hologram.
+  hologram-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+# ========================================== #
+#        KOTH Arena (LMS-style event)        #
+# ========================================== #
+# Used by KoTH types with "koth-arena: true" (see the "arena" type below).
+#  1. /koth start (or the schedule) opens /koth join for join-time seconds.
+#     Joining teleports the player to arena-location; joined players are invincible
+#     and can only use allowed-commands. Players keep their own inventory.
+#  2. When the countdown ends the KoTH starts: invincibility is removed and only
+#     joined players can capture. Players who didn't join are sent out of the zone.
+#     Dying, logging out, /koth leave or being teleported away means you're out for good.
+#  3. After the capture, players stay post-capture-time seconds, then everyone still
+#     in the arena is teleported to exit-location. Dead players respawn there too.
+# Scheduled arena KoTHs open the join join-time before the scheduled time, so the
+# KoTH itself starts at the time in arenas.yml.
+# The capture zone's protections are set per type (types.arena.protections).
+koth-arena:
+  enabled: true
+  join-time: 300 # 5 minutes before the start
+  post-capture-time: 60 # 1 minute after the capture
+  min-players: 2 # cancelled if fewer players joined when the countdown ends
+  # Seconds before the start at which "KOTH starts in ..." is broadcast
+  countdown-announcements: [240, 180, 120, 60, 30, 10, 5, 4, 3, 2, 1]
+  # Also invincible during post-capture-time (true: nobody can be killed after the winner is decided)
+  invincible-after-capture: true
+  # While the event runs, players in it and players outside it can't damage each other
+  block-outsider-pvp: true
+  # Blocks from arena-location beyond which a player counts as having left the arena (eliminated,
+  # no more invincibility). The capture zone must be inside it. 0 = no limit: then only teleports,
+  # portals, logging out and /koth leave count as leaving. Set it if the arena isn't enclosed.
+  arena-radius: 0
+
+  # Where /koth join teleports players. Set it in-game with /koth setarena, or edit it here.
+  # Until a loaded world is set, arena KoTHs refuse to start.
+  arena-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+  # Where players are teleported after the event and where dead players respawn.
+  # Set it in-game with /koth setexit. Empty or unknown world = the main world's spawn.
+  exit-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+  # The only commands joined players can use (/koth always works, for /koth leave).
+  # koth.bypass / koth.admin ignore this.
+  allowed-commands:
+    - "msg"
+    - "r"
+    - "tell"
+
+# ========================================== #
+#               KoTH Types                   #
+# ========================================== #
+# You can create as many types as you want here. Per type:
+#   capture-time            seconds a team must hold the zone
+#   knock-behavior          PAUSE (keep progress) or RESET (start over) when the holder loses the zone
+#   minimum-players-online  scheduled starts are skipped below this many players online (0 = always)
+#   max-run-time            seconds after which an uncaptured KoTH ends without a winner (0 = never).
+#                           Only one KoTH runs at a time, so one nobody captures would block later ones.
+#   protections             inside every zone of this type, running or not. true = protected:
+#                           block-breaking, block-placing, bucket-use, enderpearls (throwing in / landing
+#                           in the zone), lava-flow, water-flow, tnt (no block damage), pistons.
+#                           fall-damage: false = no fall damage in the zone. koth.bypass ignores them.
+#   command-restrictions    for players standing in the running zone. BLACKLIST blocks the listed
+#                           commands, WHITELIST allows only them (and /koth). Whole words: "f home"
+#                           blocks "/f home" but not "/f show".
+#   visuals                 action bar (%arena%, %time%), titles (%arena%, %type% / %player%, %faction%),
+#                           firework on capture. Title times are in ticks.
+#   sounds                  1.8 sound names, with volume and pitch
+#   rewards                 mode ALL runs every command; CHANCE rolls each one's chance (percent).
+#                           Placeholders: %player%, %arena%, %faction%, %type% and PlaceholderAPI's.
 types:
   # ======================================== #
   # Standard KoTH                            #
@@ -32,6 +160,10 @@ types:
       bucket-use: true
       enderpearls: false
       fall-damage: false
+      lava-flow: false
+      water-flow: false
+      tnt: false
+      pistons: false
 
     command-restrictions:
       enabled: true
@@ -48,6 +180,7 @@ types:
       action-bar:
         enabled: true
         text: "&b&lCapturing %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
       title-on-start:
         enabled: true
         title: "&a&lKOTH STARTED"
@@ -89,9 +222,6 @@ types:
         - command: "eco give %player% 5000"
           chance: 100.0
 
-    tournament-mode:
-      enabled: false
-
   # ======================================== #
   # Super KoTH - High Tier                   #
   # ======================================== #
@@ -107,6 +237,10 @@ types:
       bucket-use: true
       enderpearls: true # Stricter: Block enderpearls completely inside the zone
       fall-damage: false
+      lava-flow: false
+      water-flow: false
+      tnt: false
+      pistons: false
 
     command-restrictions:
       enabled: true
@@ -125,6 +259,7 @@ types:
       action-bar:
         enabled: true
         text: "&c&lCapturing %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
       title-on-start:
         enabled: true
         title: "&c&lSUPER KOTH STARTED"
@@ -168,14 +303,13 @@ types:
         - command: "crate give %player% admin 1"
           chance: 15.0 # 15% chance to win a super rare key!
 
-    tournament-mode:
-      enabled: false
-
   # ======================================== #
-  # Tournament Mode - Elimination Event      #
+  # KOTH Arena - LMS-style event             #
   # ======================================== #
-  tournament:
-    capture-time: 900
+  # Event settings (join, invincibility, allowed commands, ...) are in koth-arena above.
+  arena:
+    koth-arena: true
+    capture-time: 300
     knock-behavior: "PAUSE"
     minimum-players-online: 30
     max-run-time: 7200
@@ -186,36 +320,30 @@ types:
       bucket-use: true
       enderpearls: true
       fall-damage: true # It's a PvP event, fall damage matters here!
+      lava-flow: true
+      water-flow: true
+      tnt: true
+      pistons: true
 
+    # Players in the event already only have koth-arena.allowed-commands
     command-restrictions:
-      enabled: true
-      mode: "BLACKLIST"
-      blocked-commands:
-        - "ec"
-        - "enderchest"
-        - "bp"
-        - "backpack"
-        - "back"
-        - "home"
-        - "spawn"
-        - "tpa"
-        - "tpahere"
-        - "f home"
+      enabled: false
 
     visuals:
       action-bar:
         enabled: true
-        text: "&6&lTournament %arena% &8» &f%time%"
+        text: "&6&lKOTH Arena %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
       title-on-start:
         enabled: true
-        title: "&6&lTOURNAMENT STARTED"
+        title: "&6&lKOTH ARENA"
         subtitle: "&eFight for %arena%!"
         fade-in: 10
         stay: 40
         fade-out: 10
       title-on-capture:
         enabled: true
-        title: "&6&lTOURNAMENT WON"
+        title: "&6&lKOTH ARENA WON"
         subtitle: "&e%player% &7is the champion of &e%arena%!"
       firework-on-capture: true
 
@@ -244,8 +372,3 @@ types:
       commands:
         - command: "crate give %player% event 1"
           chance: 100.0
-
-    tournament-mode:
-      enabled: true
-      registration-time: 300
-      allow-spectator: false

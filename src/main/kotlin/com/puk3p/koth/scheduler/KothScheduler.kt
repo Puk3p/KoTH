@@ -1,135 +1,149 @@
 package com.puk3p.koth.scheduler
 
 import com.puk3p.koth.KoTHPlugin
-import com.puk3p.koth.event.KothStartEvent
-import com.puk3p.koth.tasks.TournamentTask
-import org.bukkit.Bukkit
+import com.puk3p.koth.arena.Arena
+import com.puk3p.koth.arena.ArenaManager.StartResult
 import org.bukkit.scheduler.BukkitRunnable
-import java.time.DayOfWeek
+import java.time.DateTimeException
+import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
-import java.util.logging.Level
+import java.time.temporal.TemporalAdjusters
 
-class KothScheduler(private val plugin: KoTHPlugin) {
+/**
+ * Starts arenas at the times listed in their `schedule` (arenas.yml).
+ *
+ * Runs every second on the main thread and acts once per new minute. Minutes are tracked as
+ * epoch minutes, so a timezone change on reload never replays slots, and up to
+ * [MAX_CATCH_UP_MINUTES] minutes skipped by a lag spike are still processed.
+ * DST follows the configured zone: slots in a skipped hour don't fire, slots in a repeated hour fire twice.
+ */
+class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
 
-    // Map of ArenaName -> List of Pair<DayOfWeek, String(HH:mm)>
-    private val schedules = mutableMapOf<String, MutableList<Pair<DayOfWeek, String>>>()
-    private var timezone: ZoneId = ZoneId.of("UTC")
-    private var lastTriggeredMinute = -1
+    @Volatile
+    private var zone: ZoneId = ZoneOffset.UTC
 
-    fun loadSchedules() {
-        schedules.clear()
+    // Start one minute back so a slot in the minute the server boots still fires.
+    private var lastMinute = currentMinute() - 1
 
-        // 1. Setup Timezone
-        val tzString = plugin.configManager.config.getString("settings.timezone", "UTC")
-        timezone = try {
-            ZoneId.of(tzString)
-        } catch (e: Exception) {
-            plugin.logger.log(Level.WARNING, "Invalid timezone: $tzString. Defaulting to UTC.")
-            ZoneId.of("UTC")
+    /** Re-reads `settings.timezone`. Call on enable and after /koth reload. */
+    fun reload() {
+        nextStartCache = null
+        val id = plugin.configManager.config.getString("settings.timezone", "UTC")
+        zone = try {
+            ZoneId.of(id)
+        } catch (e: DateTimeException) {
+            plugin.logger.warning("Invalid settings.timezone '$id', using UTC. Examples: Europe/Bucharest, UTC.")
+            ZoneOffset.UTC
         }
-
-        // 2. Parse Arenas Config
-        val config = plugin.configManager.arenasConfig
-        val section = config.getConfigurationSection("arenas") ?: return
-
-        for (arenaName in section.getKeys(false)) {
-            val scheduleSection = config.getConfigurationSection("arenas.$arenaName.schedule") ?: continue
-            val arenaSchedules = mutableListOf<Pair<DayOfWeek, String>>()
-
-            for (dayString in scheduleSection.getKeys(false)) {
-                val dayOfWeek = parseDayOfWeek(dayString)
-                if (dayOfWeek == null) {
-                    plugin.logger.warning("Invalid day of week in schedule for $arenaName: $dayString")
-                    continue
-                }
-
-                val times = scheduleSection.getStringList(dayString)
-                for (time in times) {
-                    // Regex ensures format is exactly HH:mm (e.g., 18:00, 09:30)
-                    if (time.matches(Regex("^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"))) {
-                        arenaSchedules.add(Pair(dayOfWeek, time))
-                    } else {
-                        plugin.logger.warning("Invalid time format in schedule for $arenaName: $time. Use HH:mm")
-                    }
-                }
-            }
-            if (arenaSchedules.isNotEmpty()) {
-                schedules[arenaName] = arenaSchedules
-            }
-        }
-        plugin.logger.info("Loaded schedules for ${schedules.size} arenas utilizing timezone $timezone.")
     }
 
-    fun startTask() {
-        // Runs every 20 ticks (1 second) to check the time
-        object : BukkitRunnable() {
-            override fun run() {
-                tick()
-            }
-        }.runTaskTimer(plugin, 20L, 20L)
+    override fun run() {
+        val now = currentMinute()
+        if (now <= lastMinute) return
+
+        val from = maxOf(lastMinute + 1, now - MAX_CATCH_UP_MINUTES + 1)
+        lastMinute = now
+        for (minute in from..now) {
+            fireSlotsAt(minute)
+        }
     }
 
-    private fun tick() {
-        val now = ZonedDateTime.now(timezone)
-        val currentMinute = now.minute
+    private fun fireSlotsAt(epochMinute: Long) {
+        // KOTH Arena events open /koth join join-time early, so the KoTH itself starts on the slot
+        val kothArena = plugin.kothArena
+        val joinLeadMinutes = (kothArena.joinTime + 59) / 60L
 
-        // Ensure we only trigger once per actual real-world minute
-        if (currentMinute == lastTriggeredMinute) return
-        lastTriggeredMinute = currentMinute
-
-        val currentDay = now.dayOfWeek
-        val currentTimeString = String.format("%02d:%02d", now.hour, now.minute)
-
-        for ((arenaName, arenaSchedules) in schedules) {
-            for (schedule in arenaSchedules) {
-                if (schedule.first == currentDay && schedule.second == currentTimeString) {
-                    triggerArenaStart(arenaName)
-                }
+        // Sorted so that, when two arenas share a slot, the same one wins every time.
+        for (arena in plugin.arenaManager.getArenas().sortedBy { it.name.lowercase() }) {
+            val lead = if (kothArena.isEventArena(arena)) joinLeadMinutes else 0L
+            val time = Instant.ofEpochSecond((epochMinute + lead) * 60).atZone(zone)
+            if (ScheduleEntry(time.dayOfWeek, time.toLocalTime()) in arena.schedule) {
+                startScheduled(arena)
             }
         }
     }
 
-    private fun triggerArenaStart(arenaName: String) {
-        if (plugin.arenaManager.getActiveArena() != null) {
-            plugin.logger.info("Scheduler skipped starting $arenaName because another KoTH is active.")
+    private fun startScheduled(arena: Arena) {
+        if (!arena.isEnabled) {
+            plugin.logger.info("Skipped scheduled KoTH '${arena.name}': arena is disabled.")
             return
         }
 
-        val arena = plugin.arenaManager.getArena(arenaName)
-        if (arena == null || !arena.isEnabled) return
+        // A KOTH Arena join opens a whole number of minutes early. If join-time isn't a multiple
+        // of 60 (say 90s -> 2 minutes early), wait the difference so the KoTH still starts on the slot.
+        val kothArena = plugin.kothArena
+        val waitSeconds = if (kothArena.isEventArena(arena)) (60 - kothArena.joinTime % 60) % 60 else 0
+        if (waitSeconds == 0) {
+            launchScheduled(arena)
+            return
+        }
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            // /koth reload in the meantime replaces the arena objects
+            if (plugin.arenaManager.getArena(arena.name) === arena) {
+                launchScheduled(arena)
+            }
+        }, waitSeconds * 20L)
+    }
 
-        // NEW: Minimum Player Check
-        val minPlayers = plugin.configManager.config.getInt("types.${arena.type}.minimum-players-online", 0)
-        if (Bukkit.getOnlinePlayers().size < minPlayers) {
-            plugin.logger.info("Scheduler skipped $arenaName. Required: $minPlayers, Online: ${Bukkit.getOnlinePlayers().size}")
-            // Optional: Broadcast a message that it was skipped due to low playercount
+    private fun launchScheduled(arena: Arena) {
+        val log = plugin.logger
+
+        // minimum-players-online: a scheduled KoTH on an empty server is skipped (manual starts aren't)
+        val minOnline = plugin.configManager.config.getInt("types.${arena.type}.minimum-players-online", 0)
+        val online = plugin.server.onlinePlayers.size
+        if (online < minOnline) {
+            log.info("Skipped scheduled KoTH '${arena.name}': $online player(s) online, $minOnline required.")
             return
         }
 
-        val defaultTime = plugin.configManager.config.getInt("types.${arena.type}.capture-time", 300)
-        arena.resetCapture(defaultTime)
-
-        val event = KothStartEvent(arena)
-        Bukkit.getPluginManager().callEvent(event)
-
-        if (!event.isCancelled) {
-            val isTournament = plugin.configManager.config.getBoolean("types.${arena.type}.tournament-mode.enabled", false)
-            if (isTournament) {
-                TournamentTask(plugin, arena).runTaskTimer(plugin, 0L, 20L)
-            } else {
-                val msg = plugin.configManager.messages.get("events.started", "%arena%" to arena.name, "%type%" to arena.type)
-                Bukkit.broadcastMessage(msg)
-            }
-            plugin.discordService.sendKothStarted(arena)
+        when (plugin.arenaManager.launch(arena)) {
+            StartResult.STARTED -> log.info("Started scheduled KoTH '${arena.name}'.")
+            StartResult.JOIN_OPENED -> log.info("Opened /koth join for scheduled KOTH Arena '${arena.name}'.")
+            StartResult.NO_ARENA_LOCATION ->
+                log.warning("Skipped scheduled KOTH Arena '${arena.name}': koth-arena.arena-location is not set or its world isn't loaded.")
+            StartResult.ALREADY_RUNNING -> log.info("Scheduled KoTH '${arena.name}' is already running.")
+            StartResult.ANOTHER_RUNNING ->
+                log.warning("Skipped scheduled KoTH '${arena.name}': '${plugin.arenaManager.busyArena()?.name}' is still running.")
+            StartResult.CANCELLED -> log.info("Scheduled KoTH '${arena.name}' was cancelled by another plugin.")
         }
     }
 
-    private fun parseDayOfWeek(day: String): DayOfWeek? {
-        return try {
-            DayOfWeek.valueOf(day.uppercase())
-        } catch (e: IllegalArgumentException) {
-            null
+    /**
+     * The next enabled arena due to start after now, and when (in the configured timezone).
+     * Safe to call from other threads (used by PlaceholderAPI).
+     */
+    fun nextStart(): Pair<Arena, ZonedDateTime>? {
+        // Scoreboards ask for this several times a second per player; recompute at most once a second
+        val cached = nextStartCache
+        val nowMillis = System.currentTimeMillis()
+        if (cached != null && nowMillis - cached.computedAt < NEXT_START_CACHE_MS) return cached.value
+
+        val now = ZonedDateTime.now(zone)
+        val next = plugin.arenaManager.getArenas()
+            .filter { it.isEnabled }
+            .flatMap { arena -> arena.schedule.map { arena to nextOccurrence(it, now) } }
+            .minByOrNull { it.second }
+        nextStartCache = NextStart(next, nowMillis)
+        return next
+    }
+
+    private class NextStart(val value: Pair<Arena, ZonedDateTime>?, val computedAt: Long)
+
+    @Volatile
+    private var nextStartCache: NextStart? = null
+
+    private fun currentMinute(): Long = System.currentTimeMillis() / 60_000
+
+    companion object {
+        private const val MAX_CATCH_UP_MINUTES = 5L
+        private const val NEXT_START_CACHE_MS = 1000L
+
+        /** First time strictly after [now] that matches [entry], in [now]'s zone. */
+        fun nextOccurrence(entry: ScheduleEntry, now: ZonedDateTime): ZonedDateTime {
+            val candidate = now.with(TemporalAdjusters.nextOrSame(entry.day)).with(entry.time)
+            return if (candidate.isAfter(now)) candidate else candidate.plusWeeks(1)
         }
     }
 }

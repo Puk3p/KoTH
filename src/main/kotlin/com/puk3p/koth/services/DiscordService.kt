@@ -4,147 +4,179 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.puk3p.koth.KoTHPlugin
 import com.puk3p.koth.arena.Arena
+import com.puk3p.koth.util.formatTime
 import org.bukkit.Bukkit
-import java.io.OutputStreamWriter
+import org.bukkit.ChatColor
+import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
+import java.net.URISyntaxException
 import java.time.Instant
-import java.util.logging.Level
 
+/**
+ * Posts KoTH events to a Discord webhook (`discord` in config.yml) as embeds.
+ * Texts come from the `discord` section of messages.yml. Payloads are built on the main thread
+ * and sent asynchronously; nothing is sent while the plugin is shutting down.
+ */
 class DiscordService(private val plugin: KoTHPlugin) {
 
-    private val isEnabled: Boolean
-        get() = plugin.configManager.config.getBoolean("discord.enabled", false)
+    /** One embed field: name, value, shown inline. */
+    data class Field(val name: String, val value: String, val inline: Boolean)
 
-    private val webhookUrl: String?
-        get() = plugin.configManager.config.getString("discord.webhook-url")
+    private var warnedMisconfigured = false
 
-    private val serverIp: String
-        get() = plugin.configManager.config.getString("discord.server-ip", "play.yourserver.net") ?: "play.yourserver.net"
-
-    private val footerText: String
-        get() = plugin.configManager.config.getString("discord.footer-text", "KoTH System") ?: "KoTH System"
-
-    fun sendKothStarted(arena: Arena) {
-        if (!isEnabled || webhookUrl.isNullOrBlank()) return
-
-        val colorHex = plugin.configManager.config.getString("discord.colors.started", "#00FF00") ?: "#00FF00"
-        val colorDecimal = hexToDecimal(colorHex)
-
-        val embed = JsonObject().apply {
-            addProperty("title", "⚔️ **KoTH Event Active**")
-            addProperty("description", "The **${arena.name}** KoTH is now active! Head to the warzone and battle for control.\n\nType `/koth` in-game for more info.")
-            addProperty("color", colorDecimal)
-            addProperty("timestamp", Instant.now().toString()) // Adds dynamic Discord time
-
-            val footer = JsonObject().apply {
-                addProperty("text", "$footerText • $serverIp")
-            }
-            add("footer", footer)
-        }
-
-        sendWebhook(embed)
+    fun kothStarted(arena: Arena) {
+        send("started", listOf("%arena%" to arena.name, "%type%" to arena.type))
     }
 
-    fun sendKothCaptured(arena: Arena, playerName: String, factionName: String, durationStr: String) {
-        if (!isEnabled || webhookUrl.isNullOrBlank()) return
-
-        val colorHex = plugin.configManager.config.getString("discord.colors.captured", "#FFA500") ?: "#FFA500"
-        val colorDecimal = hexToDecimal(colorHex)
-
-        val embed = JsonObject().apply {
-            addProperty("title", "🏆 **KoTH Conquered!**")
-            addProperty("description", "The **${arena.name}** event has been successfully captured!")
-            addProperty("color", colorDecimal)
-            addProperty("timestamp", Instant.now().toString())
-
-            // NEW: Fetches the 3D head of the player who won!
-            val thumbnail = JsonObject().apply {
-                addProperty("url", "https://mc-heads.net/avatar/$playerName/100")
-            }
-            add("thumbnail", thumbnail)
-
-            val footer = JsonObject().apply {
-                addProperty("text", "$footerText • $serverIp")
-            }
-            add("footer", footer)
-
-            val fields = JsonArray()
-
-            val playerField = JsonObject().apply {
-                addProperty("name", "👑 Champion")
-                addProperty("value", "`$playerName`")
-                addProperty("inline", true)
-            }
-            val factionField = JsonObject().apply {
-                addProperty("name", "🛡️ Faction")
-                addProperty("value", "`$factionName`")
-                addProperty("inline", true)
-            }
-            val durationField = JsonObject().apply {
-                addProperty("name", "⏱️ Capture Time")
-                addProperty("value", "`$durationStr`")
-                addProperty("inline", false)
-            }
-
-            fields.add(playerField)
-            fields.add(factionField)
-            fields.add(durationField)
-
-            add("fields", fields)
+    /** Includes the winner's head and Champion / Faction / Capture Time fields. */
+    fun kothCaptured(arena: Arena, playerName: String, faction: String) {
+        val placeholders = listOf(
+            "%arena%" to arena.name, "%type%" to arena.type, "%player%" to playerName, "%faction%" to faction
+        )
+        val messages = plugin.configManager.messages
+        val captureTime = formatTime(plugin.arenaManager.captureTime(arena))
+        val fields = listOf(
+            Field(plain(messages.raw("discord.field-champion")), "`$playerName`", true),
+            Field(plain(messages.raw("discord.field-faction")), "`$faction`", true),
+            Field(plain(messages.raw("discord.field-capture-time")), "`$captureTime`", false),
+        )
+        val head = if (plugin.configManager.config.getBoolean("discord.player-heads", true)) {
+            "https://mc-heads.net/avatar/$playerName/100"
+        } else {
+            null
         }
-
-        sendWebhook(embed)
+        send("captured", placeholders, fields, head)
     }
 
-    /**
-     * Sends the actual HTTP POST request asynchronously.
-     */
-    private fun sendWebhook(embed: JsonObject) {
+    /** A KoTH stopped without a capture (/koth stop, KOTH Arena cancelled or emptied, shutdown). */
+    fun kothEnded(arena: Arena) {
+        send("ended", listOf("%arena%" to arena.name, "%type%" to arena.type))
+    }
+
+    private fun send(
+        event: String,
+        placeholders: List<Pair<String, String>>,
+        fields: List<Field> = emptyList(),
+        thumbnailUrl: String? = null,
+    ) {
+        val config = plugin.configManager.config
+        if (!config.getBoolean("discord.enabled", false)) return
+        // Async tasks can't be scheduled while disabling, and blocking shutdown on HTTP isn't worth it.
+        if (!plugin.isEnabled) return
+
+        val url = config.getString("discord.webhook-url", "").trim()
+        if (!url.startsWith("https://") || url.contains("your-webhook-url-here")) {
+            if (!warnedMisconfigured) {
+                warnedMisconfigured = true
+                plugin.logger.warning("discord.enabled is true but discord.webhook-url is not set; skipping Discord messages.")
+            }
+            return
+        }
+
+        val messages = plugin.configManager.messages
+        val footer = listOf(config.getString("discord.footer-text", ""), config.getString("discord.server-ip", ""))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(" • ")
+        val payload = buildPayload(
+            title = plain(messages.raw("discord.$event-title", *placeholders.toTypedArray())),
+            description = plain(messages.raw("discord.$event-description", *placeholders.toTypedArray())),
+            color = parseColor(config.getString("discord.colors.$event", "")),
+            timestamp = Instant.now(),
+            footer = footer.ifEmpty { null },
+            thumbnailUrl = thumbnailUrl,
+            fields = fields,
+            username = config.getString("discord.username", "KoTH Alerts").trim().ifEmpty { null },
+            avatarUrl = config.getString("discord.avatar-url", DEFAULT_AVATAR).trim().ifEmpty { null },
+        )
+        val userAgent = "KoTH-Plugin/${plugin.description.version}"
+        val logger = plugin.logger
+
         Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-            try {
-                val payload = JsonObject()
-
-                // Set the main bot name/avatar if desired
-                payload.addProperty("username", "KoTH Alerts")
-                payload.addProperty("avatar_url", "https://mc-heads.net/avatar/MHF_Chest/100")
-
-                val embedsArray = JsonArray()
-                embedsArray.add(embed)
-                payload.add("embeds", embedsArray)
-
-                val url = URL(webhookUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.apply {
-                    requestMethod = "POST"
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("User-Agent", "KoTH-Plugin")
-                    doOutput = true
-                }
-
-                OutputStreamWriter(connection.outputStream).use { writer ->
-                    writer.write(payload.toString())
-                    writer.flush()
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode !in 200..299) {
-                    plugin.logger.log(Level.WARNING, "Discord webhook failed with response code: $responseCode")
-                }
-            } catch (e: Exception) {
-                plugin.logger.log(Level.SEVERE, "Failed to send Discord webhook", e)
-            }
+            postJson(url, payload, userAgent)?.let { logger.warning(it) }
         })
     }
 
-    /**
-     * Converts a Hex color string (e.g., "#FF0000") to a Discord-compatible decimal integer.
-     */
-    private fun hexToDecimal(hex: String): Int {
-        return try {
-            Integer.parseInt(hex.replace("#", ""), 16)
-        } catch (e: NumberFormatException) {
-            0 // Default to black on error
+    private fun plain(text: String): String = ChatColor.stripColor(text)
+
+    companion object {
+        private const val TIMEOUT_MS = 10_000
+        private const val DEFAULT_COLOR = 0x2F3136
+        private const val DEFAULT_AVATAR = "https://mc-heads.net/avatar/MHF_Chest/100"
+
+        /** A webhook body with one embed. Gson handles escaping. */
+        fun buildPayload(
+            title: String,
+            description: String,
+            color: Int,
+            timestamp: Instant,
+            footer: String? = null,
+            thumbnailUrl: String? = null,
+            fields: List<Field> = emptyList(),
+            username: String? = null,
+            avatarUrl: String? = null,
+        ): String {
+            val embed = JsonObject().apply {
+                addProperty("title", title)
+                addProperty("description", description)
+                addProperty("color", color)
+                addProperty("timestamp", timestamp.toString())
+                if (footer != null) add("footer", JsonObject().apply { addProperty("text", footer) })
+                if (thumbnailUrl != null) add("thumbnail", JsonObject().apply { addProperty("url", thumbnailUrl) })
+                if (fields.isNotEmpty()) {
+                    add("fields", JsonArray().apply {
+                        for (field in fields) {
+                            add(JsonObject().apply {
+                                addProperty("name", field.name)
+                                addProperty("value", field.value)
+                                addProperty("inline", field.inline)
+                            })
+                        }
+                    })
+                }
+            }
+            return JsonObject().apply {
+                if (username != null) addProperty("username", username)
+                if (avatarUrl != null) addProperty("avatar_url", avatarUrl)
+                add("embeds", JsonArray().apply { add(embed) })
+            }.toString()
+        }
+
+        /** "#FFA500" or "FFA500" -> 0xFFA500; anything else -> Discord's default embed color. */
+        fun parseColor(hex: String): Int {
+            return hex.trim().removePrefix("#").toIntOrNull(16)?.takeIf { it in 0..0xFFFFFF } ?: DEFAULT_COLOR
+        }
+
+        /**
+         * POSTs [payload] to the webhook. Blocking: call off the main thread.
+         * @return a warning to log on failure, or null on success. Never contains the URL (it holds the token).
+         */
+        fun postJson(url: String, payload: String, userAgent: String): String? {
+            return try {
+                val connection = URI(url).toURL().openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = TIMEOUT_MS
+                    connection.readTimeout = TIMEOUT_MS
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    // Discord (Cloudflare) rejects Java's default User-Agent
+                    connection.setRequestProperty("User-Agent", userAgent)
+                    connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+
+                    val code = connection.responseCode
+                    if (code in 200..299) null else "Discord webhook returned HTTP $code."
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: IOException) {
+                "Could not reach the Discord webhook: ${e.javaClass.simpleName}"
+            } catch (e: URISyntaxException) {
+                "discord.webhook-url is not a valid URL."
+            } catch (e: IllegalArgumentException) {
+                "discord.webhook-url is not a valid URL."
+            }
         }
     }
 }

@@ -4,30 +4,144 @@ general:
   no-permission: "&cYou do not have permission to execute this command."
   player-only: "&cThis command can only be used by players."
   invalid-args: "&cInvalid arguments. Usage: %usage%"
+  unknown-subcommand: "&cUnknown subcommand. Type &e/%label% help&c."
   reloaded: "&aPlugin configurations reloaded successfully."
 
 admin:
   arena-created: "&aArena &e%arena% &asuccessfully created as type &e%type%&a."
-  pos1-set: "&aPosition 1 set for region selection."
-  pos2-set: "&aPosition 2 set for region selection."
+  region-expanded: "&eYour selection was only %selected% block(s) high, so the zone was extended upward to %height% blocks. Otherwise a player who jumps would leave it."
+  arena-deleted: "&aArena &e%arena% &ahas been deleted."
+  arena-exists: "&cAn arena named &e%arena% &calready exists."
+  arena-busy: "&cArena &e%arena% &cis running. Stop it first with &e/koth stop %arena%&c."
+  invalid-name: "&cArena names may only contain letters, numbers, &e- &cand &e_ &c(max 32 characters)."
+  pos1-set: "&aPosition 1 set for region selection. &7(%x%, %y%, %z%)"
+  pos2-set: "&aPosition 2 set for region selection. &7(%x%, %y%, %z%)"
+  selection-incomplete: "&cSet both corners first with &e/koth pos1 &cand &e/koth pos2&c."
+  selection-world-mismatch: "&cBoth positions must be in the same world."
+  spawn-set: "&aSpawn for arena &e%arena% &aset to your location."
+  arena-location-set: "&aKOTH Arena location set to your position &7(%world%: %x%, %y%, %z%)&a."
+  exit-location-set: "&aKOTH Arena exit location set to your position &7(%world%: %x%, %y%, %z%)&a."
+  location-save-failed: "&cCould not save the location to config.yml. Check the console."
+  koth-arena-no-location: "&cThe KOTH Arena location is not set or its world isn't loaded. Use &e/koth setarena&c."
   arena-not-found: "&cArena &e%arena% &cdoes not exist."
   type-not-found: "&cKoTH type &e%type% &cwas not found in config.yml."
+  already-running: "&cArena &e%arena% &cis already running."
+  another-running: "&cAnother KoTH (&e%arena%&c) is already running. Only one can run at a time."
+  start-cancelled: "&cThe start of &e%arena% &cwas cancelled by another plugin."
+  not-running: "&cNo KoTH is currently running."
+  arena-not-running: "&cArena &e%arena% &cis not running."
+  reload-blocked: "&cStop the running KoTH (&e%arena%&c) before reloading."
+  list-header: "&7Arenas (&e%count%&7):"
+  list-entry: "&8 - &e%arena% &7type: &b%type% &7state: &f%state% &7enabled: &f%enabled%"
+  list-empty: "&7No arenas have been created yet. Use &e/koth create&7."
+
+help:
+  - "&8&m------&r &bKoTH &8&m------"
+  - "&e/%label% pos1 &7/ &epos2 &7- Select the two corners of the capture zone"
+  - "&e/%label% create <name> <type> &7- Create an arena from your selection"
+  - "&e/%label% setspawn <name> &7- Set the arena spawn to your location"
+  - "&e/%label% delete <name> &7- Delete an arena"
+  - "&e/%label% list &7- List all arenas"
+  - "&e/%label% start <name> &7- Start a KoTH"
+  - "&e/%label% stop [name] &7- Stop the running KoTH"
+  - "&e/%label% setarena &7/ &esetexit &7- Set the KOTH Arena / exit location"
+  - "&e/%label% reload &7- Reload configs and arenas"
+  - "&e/%label% join &7/ &eleave &7- Join or leave the KOTH Arena"
+
+help-player:
+  - "&8&m------&r &bKoTH &8&m------"
+  - "&e/%label% join &7- Join the KOTH Arena before it starts"
+  - "&e/%label% leave &7- Leave the KOTH Arena (you can't come back)"
 
 events:
   started: "&aThe &e%type% &aevent at &e%arena% &ahas started! Capture it now!"
-  stopped: "&cThe KoTH event at &e%arena% has been forcefully stopped."
+  stopped: "&cThe KoTH event at &e%arena% &chas been forcefully stopped."
+  timed-out: "&c&lKoTH DRAW! &7The &c%arena% &7KoTH has exceeded the time limit without a winner."
   capturing: "&e%player% &7from &e%faction% &7is capturing &b%arena%&7! (&e%time% &7left)"
   captured: "&a&l%arena% CAPTURED! &e%player% &7from &e%faction% &7won the event!"
   lost-control: "&c%player% lost control of %arena%!"
   contested: "&cThe KoTH %arena% is contested! Multiple players are in the zone!"
 
-tournament:
-  registration-opened: "&aRegistration for the Tournament KoTH &e%arena% &ahas opened! Type &b/koth join &ato enter! (&e%time% &aleft)"
-  registration-closed: "&cRegistration for %arena% has ended! Let the battle begin!"
-  joined: "&aYou have successfully registered for the KoTH event."
-  already-joined: "&cYou are already registered for this event."
-  left: "&eYou have left the KoTH event registration."
-  eliminated: "&cYou have died and been eliminated from the KoTH event! No rejoining."
-  spectate-denied: "&cSpectating is disabled. You cannot enter the arena."
-  not-registered: "&cRegistration has ended. You cannot enter the arena."
-  command-blocked: "&cYou cannot use that command while participating in a KoTH event."
+# KOTH Arena (config.yml -> koth-arena). These use their own prefix instead of the one above.
+# %time% is spoken ("3 minute", "10 secunde") using time-units below.
+koth-arena:
+  prefix: "&a&lKOTH &8» &f"
+  join-opened: "Arena KOTH începe în &e%time%&f! Scrie &e/koth join &fpentru a intra."
+  join-countdown: "Arena KOTH începe în &e%time%&f! Scrie &e/koth join &fpentru a intra. &7(%count% înscriși)"
+  joined: "Ai intrat în Arena KOTH! Ești invincibil până la start."
+  already-joined: "&cEști deja în Arena KOTH."
+  join-closed: "&cNu se poate da join acum. Join-ul este deschis doar înainte de start."
+  cannot-rejoin: "&cAi ieșit din Arena KOTH și nu mai poți reintra."
+  no-location: "&cArena KOTH nu este configurată. Anunță un admin."
+  teleport-failed: "&cNu ai putut fi teleportat în Arena KOTH (ești în combat?)."
+  left: "&eAi părăsit Arena KOTH. Nu mai poți reintra."
+  not-joined: "&cNu ești în Arena KOTH."
+  left-arena: "&cAi fost teleportat în afara Arenei KOTH și ai fost eliminat."
+  walked-out: "&cAi ieșit din Arena KOTH și ai fost eliminat. Nu mai poți reintra."
+  eliminated: "&cAi murit și ai fost eliminat din Arena KOTH!"
+  not-enough-players: "&cArena KOTH a fost anulată: doar %count%/%min% jucători înscriși."
+  fight-started: "&aKOTH-ul a început! Invincibilitatea a fost eliminată. Luptă pentru zonă!"
+  no-players-left: "&cArena KOTH s-a terminat: nu a mai rămas niciun jucător."
+  cancelled: "&cArena KOTH a fost anulată."
+  captured: "Jucătorul &e%player% &fdin facțiunea &e%faction% &fa capturat Arena KOTH!"
+  post-capture: "KOTH a fost capturat de &e%player%&f! Veți fi teleportați afară în &e%time%&f."
+  post-capture-countdown: "Veți fi teleportați afară în &e%time%&f."
+  teleported-out: "Ai fost teleportat afară din Arena KOTH."
+  zone-denied: "&cDoar jucătorii din Arena KOTH pot intra în zonă."
+  command-blocked: "&cNu poți folosi comenzi în Arena KOTH. Scrie &e/koth leave &cpentru a ieși."
+
+# Plural forms per unit: [one, few, many]. Romanian: 1 minut, 3 minute, 20 de minute.
+# For English use e.g. ["minute", "minutes", "minutes"].
+time-units:
+  minute: ["minut", "minute", "de minute"]
+  second: ["secundă", "secunde", "de secunde"]
+
+# /fkoth (faction KoTH wins, config.yml -> faction-wins). Uses its own prefix.
+fkoth:
+  prefix: "&8[&6FKoth&8] "
+  disabled: "&cFaction KoTH wins are disabled: %reason%."
+  no-permission: "&cNu ai permisiune pentru această comandă."
+  usage-main: "&eUtilizare: /%label% <add|remove|set|reload|debug|sethologram|stats|top>"
+  usage-add: "&eUtilizare: /%label% add <player> <nr>"
+  usage-remove: "&eUtilizare: /%label% remove <faction> <nr>"
+  usage-set: "&eUtilizare: /%label% set <faction> <nr>"
+  player-not-found: "&cJucătorul nu a fost găsit."
+  faction-not-found: "&cFacțiunea &e%faction% &cnu are win-uri înregistrate."
+  player-offline: "&eJucătorul este offline, iar lookup offline este dezactivat."
+  no-faction: "&eNu ai facțiune."
+  ignored-no-faction: "&eWin ignorat: jucătorul nu are facțiune."
+  invalid-number: "&cNumăr invalid."
+  stats-only-player: "&eDoar jucătorii pot folosi această comandă."
+  add-success: "&aS-au adăugat %amount% win-uri la facțiunea %faction%."
+  remove-success: "&aS-au scăzut %amount% win-uri din facțiunea %faction%."
+  set-success: "&aWin-urile facțiunii %faction% au fost setate la %amount%."
+  stats-self: "&6Facțiunea ta (&e%faction%&6) are &e%wins% &6win-uri KOTH."
+  top-header: "&6&lTop %size% facțiuni KOTH"
+  top-line: "&e#%position%. &f%faction% &7- &6%wins%"
+  hologram-set: "&aLocația hologramei de top a fost setată la poziția ta."
+  reload-success: "&aConfigurile au fost reîncărcate."
+  debug-header: "&6&lFKoth Debug"
+  debug-line: "&e%name%: &f%value%"
+
+protection:
+  denied: "&cYou can't do that inside this capture zone."
+  enderpearls: "&cEnderpearls are disabled inside this capture zone!"
+  command-blocked: "&cYou can't use that command inside the KoTH zone."
+
+# Text for %koth_...% placeholders with nothing to show (no KoTH running, nothing scheduled, ...)
+placeholders:
+  none: "None"
+
+# Discord embeds (config.yml -> discord). Color codes are stripped; **bold** is Discord markdown.
+# Emoji are written as escapes ("\U0001F3C6" is the trophy): the YAML parser in 1.8.8 rejects most
+# emoji typed directly, even in comments, and would then fail to load this whole file.
+discord:
+  started-title: "⚔️ KoTH Event Active"
+  started-description: "The **%arena%** KoTH is now active! Head to the warzone and battle for control.\n\nType `/koth` in-game for more info."
+  captured-title: "\U0001F3C6 KoTH Conquered!"
+  captured-description: "The **%arena%** event has been successfully captured!"
+  field-champion: "\U0001F451 Champion"
+  field-faction: "\U0001F6E1️ Faction"
+  field-capture-time: "⏱️ Capture Time"
+  ended-title: "KoTH ended"
+  ended-description: "**%arena%** was stopped before anyone captured it."

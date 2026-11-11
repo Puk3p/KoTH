@@ -6,6 +6,11 @@ import org.bukkit.event.Cancellable
 import org.bukkit.event.Event
 import org.bukkit.event.HandlerList
 
+/**
+ * Fired when a player's capture timer reaches zero, before rewards are given.
+ * Cancelling it denies the win for now: the KoTH keeps running and, if the player is
+ * still alone in the zone, the event fires again on the next tick (once per second).
+ */
 class KothCaptureEvent(val arena: Arena, val capturer: Player) : Event(), Cancellable {
 
     private var isCancelled = false

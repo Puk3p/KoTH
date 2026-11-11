@@ -16,14 +16,19 @@ data class Region(
     companion object {
         fun fromLocations(loc1: Location, loc2: Location): Region {
             require(loc1.world == loc2.world) { "Locations must be in the same world" }
+            return of(loc1.world.name, loc1.blockX, loc1.blockY, loc1.blockZ, loc2.blockX, loc2.blockY, loc2.blockZ)
+        }
+
+        /** Builds a region from two corners in any order. */
+        fun of(worldName: String, x1: Int, y1: Int, z1: Int, x2: Int, y2: Int, z2: Int): Region {
             return Region(
-                worldName = loc1.world.name,
-                minX = min(loc1.blockX, loc2.blockX),
-                minY = min(loc1.blockY, loc2.blockY),
-                minZ = min(loc1.blockZ, loc2.blockZ),
-                maxX = max(loc1.blockX, loc2.blockX),
-                maxY = max(loc1.blockY, loc2.blockY),
-                maxZ = max(loc1.blockZ, loc2.blockZ)
+                worldName = worldName,
+                minX = min(x1, x2),
+                minY = min(y1, y2),
+                minZ = min(z1, z2),
+                maxX = max(x1, x2),
+                maxY = max(y1, y2),
+                maxZ = max(z1, z2)
             )
         }
     }
