@@ -7,13 +7,11 @@ import com.puk3p.koth.arena.ArenaState
 import com.puk3p.koth.arena.Region
 import com.puk3p.koth.config.Messages
 import com.puk3p.koth.kotharena.KothArenaManager
-import org.bukkit.Location
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
-import java.util.UUID
 import java.util.logging.Level
 
 /**
@@ -22,12 +20,7 @@ import java.util.logging.Level
  */
 class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabCompleter {
 
-    private class Selection {
-        var pos1: Location? = null
-        var pos2: Location? = null
-    }
-
-    private val selections = HashMap<UUID, Selection>()
+    private val selections get() = plugin.selections
 
     // Looked up on every use: /koth reload replaces the Messages instance.
     private val messages: Messages get() = plugin.configManager.messages
@@ -58,6 +51,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             "leave" -> leave(sender)
             "pos1" -> setPosition(sender, first = true)
             "pos2" -> setPosition(sender, first = false)
+            "wand" -> giveWand(sender)
             "create" -> create(sender, label, args)
             "delete" -> delete(sender, label, args)
             "setspawn" -> setSpawn(sender, label, args)
@@ -116,20 +110,20 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
     //  Admin subcommands
     // ------------------------------------------------------------------ //
 
+    /** /koth pos1, /koth pos2: the block the player stands in. */
     private fun setPosition(sender: CommandSender, first: Boolean) {
         val player = requirePlayer(sender) ?: return
-        val location = player.location
-        val selection = selections.getOrPut(player.uniqueId) { Selection() }
-        if (first) selection.pos1 = location else selection.pos2 = location
+        selections.setCorner(player, first, player.location)
+    }
 
-        sender.sendMessage(
-            messages.get(
-                if (first) "admin.pos1-set" else "admin.pos2-set",
-                "%x%" to location.blockX.toString(),
-                "%y%" to location.blockY.toString(),
-                "%z%" to location.blockZ.toString()
-            )
-        )
+    /** /koth wand: left click a block for pos1, right click for pos2 (see WandListener). */
+    private fun giveWand(sender: CommandSender) {
+        val player = requirePlayer(sender) ?: return
+        // A full inventory: drop it at the player's feet rather than lose it
+        player.inventory.addItem(selections.createWand()).values.forEach {
+            player.world.dropItemNaturally(player.location, it)
+        }
+        sender.sendMessage(messages.get("admin.wand-given"))
     }
 
     private fun create(sender: CommandSender, label: String, args: Array<String>) {
@@ -151,7 +145,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             return
         }
 
-        val selection = selections[player.uniqueId]
+        val selection = selections.get(player.uniqueId)
         val pos1 = selection?.pos1
         val pos2 = selection?.pos2
         if (pos1 == null || pos2 == null) {
@@ -174,7 +168,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         val arena = Arena(name, type, region)
         arenas.addArena(arena)
         arenas.saveArena(arena)
-        selections.remove(player.uniqueId)
+        selections.clear(player.uniqueId)
 
         sender.sendMessage(messages.get("admin.arena-created", "%arena%" to arena.name, "%type%" to type))
         if (selectedHeight < MIN_ZONE_HEIGHT) {
@@ -370,7 +364,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             "reload" to "koth.reload",
         )
         private val ADMIN_SUBCOMMANDS = listOf(
-            "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload"
+            "wand", "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload"
         )
 
         // Arena names become YAML keys, so no dots or spaces.

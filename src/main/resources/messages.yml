@@ -16,6 +16,8 @@ admin:
   invalid-name: "&cArena names may only contain letters, numbers, &e- &cand &e_ &c(max 32 characters)."
   pos1-set: "&aPosition 1 set for region selection. &7(%x%, %y%, %z%)"
   pos2-set: "&aPosition 2 set for region selection. &7(%x%, %y%, %z%)"
+  selection-size: "&7Selection: &e%x%&7x&e%y%&7x&e%z% &7(%blocks% blocks). Now &e/koth create <name> <type>&7."
+  wand-given: "&aYou got the KoTH wand: &eleft click &aa block for position 1, &eright click &afor position 2. The selection is shown with particles (&agreen &a= 1, &cred &a= 2)."
   selection-incomplete: "&cSet both corners first with &e/koth pos1 &cand &e/koth pos2&c."
   selection-world-mismatch: "&cBoth positions must be in the same world."
   spawn-set: "&aSpawn for arena &e%arena% &aset to your location."
@@ -37,6 +39,7 @@ admin:
 
 help:
   - "&8&m------&r &bKoTH &8&m------"
+  - "&e/%label% wand &7- Get the selection wand (left/right click two corner blocks)"
   - "&e/%label% pos1 &7/ &epos2 &7- Select the two corners of the capture zone"
   - "&e/%label% create <name> <type> &7- Create an arena from your selection"
   - "&e/%label% setspawn <name> &7- Set the arena spawn to your location"
@@ -122,6 +125,14 @@ fkoth:
   reload-success: "&aConfigurile au fost reîncărcate."
   debug-header: "&6&lFKoth Debug"
   debug-line: "&e%name%: &f%value%"
+
+# The /koth wand item. Renaming it is safe: wands already handed out keep working.
+wand:
+  name: "&6&lKoTH Wand"
+  lore:
+    - "&7Left click a block: &aposition 1 &7(green)"
+    - "&7Right click a block: &cposition 2 &7(red)"
+    - "&7Then: &e/koth create <name> <type>"
 
 protection:
   denied: "&cYou can't do that inside this capture zone."
