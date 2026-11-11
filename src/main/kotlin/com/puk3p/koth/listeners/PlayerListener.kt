@@ -49,7 +49,7 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
         val arenas = plugin.arenaManager
         val arena = arenas.getActiveArena() ?: return false
         if (!arena.region.contains(to) || arena.region.contains(from)) return false
-        if (arenas.canEnter(arena, player.uniqueId)) return false
+        if (arenas.canEnter(arena, player.uniqueId) || isStaff(player)) return false
 
         // Walking against the border retries several times a second; don't flood the chat
         val now = System.currentTimeMillis()
@@ -103,12 +103,30 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
         val player = event.player
         // Logged out while in the KOTH Arena: they'd log back in inside it, so send them to the exit.
         // One tick later, because teleporting during the join event isn't reliable.
-        plugin.kothArena.takeLoginLocation(player.uniqueId)?.let { exit ->
+        val loginExit = plugin.kothArena.takeLoginLocation(player.uniqueId)
+            ?: outsiderInEventZone(player) // logged in inside a running KOTH Arena zone without being in it
+        if (loginExit != null) {
             plugin.server.scheduler.runTask(plugin, Runnable {
-                if (player.isOnline) player.teleport(exit)
+                if (player.isOnline) player.teleport(loginExit)
             })
+            return
         }
         updateZone(player, player.location)
+    }
+
+    /** The exit location if [player] stands in a running KOTH Arena zone they may not be in. */
+    private fun outsiderInEventZone(player: Player): Location? {
+        val arena = plugin.arenaManager.getActiveArena() ?: return null
+        if (!plugin.kothArena.isEventArena(arena) || !arena.region.contains(player.location)) return null
+        if (plugin.arenaManager.canEnter(arena, player.uniqueId) || isStaff(player)) return null
+        player.sendMessage(plugin.kothArena.prefixed("zone-denied"))
+        return plugin.kothArena.exitLocation()
+    }
+
+    /** Staff may stand in any zone (they never count there, see CaptureTickTask.countsInZone). */
+    private fun isStaff(player: Player): Boolean {
+        return player.hasPermission("koth.bypass") || player.hasPermission("koth.admin") ||
+            player.getMetadata("vanished").any { it.asBoolean() }
     }
 
     /** KOTH Arena: players who died in the event respawn at the exit location. */

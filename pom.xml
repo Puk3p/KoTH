@@ -42,13 +42,24 @@
             <version>${kotlin.version}</version>
         </dependency>
 
-        <!-- Spigot API (Paper 1.8.8 compatible) -->
+        <!-- Spigot API (Paper 1.8.8 compatible), pinned to a fixed snapshot so builds are reproducible -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.8.8-R0.1-SNAPSHOT</version>
+            <version>1.8.8-R0.1-20160221.082514-43</version>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>net.md-5</groupId>
+                    <artifactId>bungeecord-chat</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+
+        <!--
+            No vanish plugin API is needed: PremiumVanish, SuperVanish and Essentials all set the
+            "vanished" player metadata, which the capture loop checks.
+        -->
 
         <!-- PlaceholderAPI -->
         <dependency>

@@ -19,6 +19,11 @@ settings:
 discord:
   enabled: false
   webhook-url: "https://discord.com/api/webhooks/your-webhook-url-here"
+  server-ip: "play.puk3p.ro" # Appears in the embed footer
+  footer-text: "KoTH Network" # Appears next to the IP
+  username: "KoTH Alerts" # Name the webhook posts as
+  avatar-url: "https://mc-heads.net/avatar/MHF_Chest/100"
+  player-heads: true # Show the winner's head on capture embeds
   colors:
     started: "#00FF00"
     captured: "#FFA500"
@@ -68,12 +73,13 @@ faction-wins:
 #     Joining teleports the player to arena-location; joined players are invincible
 #     and can only use allowed-commands. Players keep their own inventory.
 #  2. When the countdown ends the KoTH starts: invincibility is removed and only
-#     joined players can capture. Dying, logging out, /koth leave or being teleported
-#     away means you're out for good (no rejoining).
+#     joined players can capture. Players who didn't join are sent out of the zone.
+#     Dying, logging out, /koth leave or being teleported away means you're out for good.
 #  3. After the capture, players stay post-capture-time seconds, then everyone still
 #     in the arena is teleported to exit-location. Dead players respawn there too.
 # Scheduled arena KoTHs open the join join-time before the scheduled time, so the
 # KoTH itself starts at the time in arenas.yml.
+# The capture zone's protections are set per type (types.arena.protections).
 koth-arena:
   enabled: true
   join-time: 300 # 5 minutes before the start
@@ -111,63 +117,258 @@ koth-arena:
     pitch: 0.0
 
   # The only commands joined players can use (/koth always works, for /koth leave).
-  # koth.bypass ignores this and the arena protection.
+  # koth.bypass / koth.admin ignore this.
   allowed-commands:
     - "msg"
     - "r"
     - "tell"
 
-  # Inside the KoTH capture zone while the event runs. false = forbidden.
-  arena-protection:
-    block-placing: false
-    block-breaking: false
-    buckets: false
-    pearls: false
-    lava: false
-    water: false
-    tnt: false
-    pistons: false
-
 # ========================================== #
 #               KoTH Types                   #
 # ========================================== #
-# You can create as many types as you want here.
+# You can create as many types as you want here. Per type:
+#   capture-time            seconds a team must hold the zone
+#   knock-behavior          PAUSE (keep progress) or RESET (start over) when the holder loses the zone
+#   minimum-players-online  scheduled starts are skipped below this many players online (0 = always)
+#   max-run-time            seconds after which an uncaptured KoTH ends without a winner (0 = never).
+#                           Only one KoTH runs at a time, so one nobody captures would block later ones.
+#   protections             inside every zone of this type, running or not. true = protected:
+#                           block-breaking, block-placing, bucket-use, enderpearls (throwing in / landing
+#                           in the zone), lava-flow, water-flow, tnt (no block damage), pistons.
+#                           fall-damage: false = no fall damage in the zone. koth.bypass ignores them.
+#   command-restrictions    for players standing in the running zone. BLACKLIST blocks the listed
+#                           commands, WHITELIST allows only them (and /koth). Whole words: "f home"
+#                           blocks "/f home" but not "/f show".
+#   visuals                 action bar (%arena%, %time%), titles (%arena%, %type% / %player%, %faction%),
+#                           firework on capture. Title times are in ticks.
+#   sounds                  1.8 sound names, with volume and pitch
+#   rewards                 mode ALL runs every command; CHANCE rolls each one's chance (percent).
+#                           Placeholders: %player%, %arena%, %faction%, %type% and PlaceholderAPI's.
 types:
-  # Normal KoTH example
+  # ======================================== #
+  # Standard KoTH                            #
+  # ======================================== #
   koth:
-    capture-time: 300 # In seconds (5 minutes)
-    knock-behavior: "PAUSE" # Options: PAUSE, RESET (when capturer gets knocked off)
-    # Seconds after which an uncaptured KoTH stops by itself; 0 = runs until captured or /koth stop.
-    # Only one KoTH runs at a time, so one nobody captures blocks every later scheduled start.
-    max-duration: 0
-    rewards:
-      - "give %player% diamond 16"
-      - "eco give %player% 5000"
-    sounds:
-      start: "ENDERDRAGON_GROWL"
-      capture-tick: "CLICK"
-      captured: "LEVEL_UP"
+    capture-time: 300
+    knock-behavior: "PAUSE"
+    minimum-players-online: 10
+    max-run-time: 3600
 
-  # High-tier KoTH example
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: false
+      fall-damage: false
+      lava-flow: false
+      water-flow: false
+      tnt: false
+      pistons: false
+
+    command-restrictions:
+      enabled: true
+      mode: "BLACKLIST" # Options: BLACKLIST, WHITELIST
+      blocked-commands:
+        - "ec"
+        - "enderchest"
+        - "pv"
+        - "f home"
+        - "spawn"
+        - "home"
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&b&lCapturing %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
+      title-on-start:
+        enabled: true
+        title: "&a&lKOTH STARTED"
+        subtitle: "&e%arena% &7is now active!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lKOTH CAPTURED"
+        subtitle: "&e%player% &7has captured &e%arena%!"
+      firework-on-capture: true
+
+    sounds:
+      start:
+        sound: "ENDERDRAGON_GROWL"
+        volume: 1.0
+        pitch: 1.0
+      capturing-tick:
+        enabled: true
+        sound: "CLICK"
+        volume: 0.5
+        pitch: 1.5
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 0.8
+        pitch: 0.5
+      captured:
+        sound: "LEVEL_UP"
+        volume: 1.0
+        pitch: 1.0
+
+    rewards:
+      mode: "ALL" # Options: ALL (runs all), CHANCE (RNG based on percentages below)
+      commands:
+        - command: "give %player% diamond 16"
+          chance: 100.0
+        - command: "eco give %player% 5000"
+          chance: 100.0
+
+  # ======================================== #
+  # Super KoTH - High Tier                   #
+  # ======================================== #
   superkoth:
-    capture-time: 600 # 10 minutes
+    capture-time: 600
     knock-behavior: "RESET"
-    rewards:
-      - "crate give %player% legendary 3"
-      - "eco give %player% 50000"
-    sounds:
-      start: "WITHER_SPAWN"
-      capture-tick: "NOTE_PLING"
-      captured: "ENDERDRAGON_DEATH"
+    minimum-players-online: 25
+    max-run-time: 7200
 
-  # KOTH Arena example (settings in koth-arena above)
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: true # Stricter: Block enderpearls completely inside the zone
+      fall-damage: false
+      lava-flow: false
+      water-flow: false
+      tnt: false
+      pistons: false
+
+    command-restrictions:
+      enabled: true
+      mode: "BLACKLIST"
+      blocked-commands:
+        - "ec"
+        - "enderchest"
+        - "pv"
+        - "f home"
+        - "spawn"
+        - "home"
+        - "fix"
+        - "feed"
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&c&lCapturing %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
+      title-on-start:
+        enabled: true
+        title: "&c&lSUPER KOTH STARTED"
+        subtitle: "&e%arena% &7is now active! High tier rewards!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lSUPER KOTH CAPTURED"
+        subtitle: "&e%player% &7dominated &e%arena%!"
+      firework-on-capture: true
+
+    sounds:
+      start:
+        sound: "WITHER_SPAWN"
+        volume: 1.0
+        pitch: 0.8
+      capturing-tick:
+        enabled: true
+        sound: "NOTE_PLING"
+        volume: 0.7
+        pitch: 2.0
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 1.0
+        pitch: 0.5
+      captured:
+        sound: "ENDERDRAGON_DEATH"
+        volume: 1.0
+        pitch: 1.0
+
+    rewards:
+      mode: "CHANCE" # RNG based rewards
+      commands:
+        - command: "eco give %player% 50000"
+          chance: 100.0
+        - command: "crate give %player% legendary 3"
+          chance: 100.0
+        - command: "crate give %player% admin 1"
+          chance: 15.0 # 15% chance to win a super rare key!
+
+  # ======================================== #
+  # KOTH Arena - LMS-style event             #
+  # ======================================== #
+  # Event settings (join, invincibility, allowed commands, ...) are in koth-arena above.
   arena:
     koth-arena: true
     capture-time: 300
     knock-behavior: "PAUSE"
-    rewards:
-      - "crate give %player% event 1"
+    minimum-players-online: 30
+    max-run-time: 7200
+
+    protections:
+      block-breaking: true
+      block-placing: true
+      bucket-use: true
+      enderpearls: true
+      fall-damage: true # It's a PvP event, fall damage matters here!
+      lava-flow: true
+      water-flow: true
+      tnt: true
+      pistons: true
+
+    # Players in the event already only have koth-arena.allowed-commands
+    command-restrictions:
+      enabled: false
+
+    visuals:
+      action-bar:
+        enabled: true
+        text: "&6&lKOTH Arena %arena% &8» &f%time%"
+        contested-text: "&c&lCONTESTED! &7Clear the zone!"
+      title-on-start:
+        enabled: true
+        title: "&6&lKOTH ARENA"
+        subtitle: "&eFight for %arena%!"
+        fade-in: 10
+        stay: 40
+        fade-out: 10
+      title-on-capture:
+        enabled: true
+        title: "&6&lKOTH ARENA WON"
+        subtitle: "&e%player% &7is the champion of &e%arena%!"
+      firework-on-capture: true
+
     sounds:
-      start: "ENDERDRAGON_GROWL"
-      capture-tick: "CLICK"
-      captured: "LEVEL_UP"
+      start:
+        sound: "ENDERDRAGON_GROWL"
+        volume: 1.0
+        pitch: 0.5
+      capturing-tick:
+        enabled: true
+        sound: "CLICK"
+        volume: 0.8
+        pitch: 1.0
+      contested:
+        enabled: true
+        sound: "NOTE_BASS"
+        volume: 1.0
+        pitch: 0.5
+      captured:
+        sound: "LEVEL_UP"
+        volume: 1.0
+        pitch: 0.5
+
+    rewards:
+      mode: "ALL"
+      commands:
+        - command: "crate give %player% event 1"
+          chance: 100.0

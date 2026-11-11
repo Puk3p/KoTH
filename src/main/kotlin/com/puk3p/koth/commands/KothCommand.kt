@@ -18,7 +18,7 @@ import java.util.logging.Level
 
 /**
  * /koth <subcommand>. join/leave need [JOIN_PERMISSION] (everyone by default),
- * everything else needs [ADMIN_PERMISSION].
+ * everything else needs [ADMIN_PERMISSION] (or koth.start / koth.stop / koth.reload for just those).
  */
 class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabCompleter {
 
@@ -40,15 +40,15 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             return true
         }
 
-        val permission = when (sub) {
-            in PLAYER_SUBCOMMANDS -> JOIN_PERMISSION
-            in ADMIN_SUBCOMMANDS -> ADMIN_PERMISSION
+        val allowed = when (sub) {
+            in PLAYER_SUBCOMMANDS -> sender.hasPermission(JOIN_PERMISSION)
+            in ADMIN_SUBCOMMANDS -> hasAdminAccess(sender, sub)
             else -> {
                 sender.sendMessage(messages.get("general.unknown-subcommand", "%label%" to label))
                 return true
             }
         }
-        if (!sender.hasPermission(permission)) {
+        if (!allowed) {
             sender.sendMessage(messages.get("general.no-permission"))
             return true
         }
@@ -69,6 +69,12 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             "reload" -> reload(sender)
         }
         return true
+    }
+
+    /** koth.admin allows every admin subcommand; koth.start / koth.stop / koth.reload allow just their own. */
+    private fun hasAdminAccess(sender: CommandSender, sub: String): Boolean {
+        if (sender.hasPermission(ADMIN_PERMISSION)) return true
+        return SINGLE_PERMISSION_SUBCOMMANDS[sub]?.let { sender.hasPermission(it) } ?: false
     }
 
     private fun showHelp(sender: CommandSender, label: String) {
@@ -335,15 +341,13 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         alias: String,
         args: Array<String>
     ): List<String> {
-        val isAdmin = sender.hasPermission(ADMIN_PERMISSION)
-
         val options: Collection<String> = when {
             args.size == 1 -> buildList {
                 add("help")
                 if (sender.hasPermission(JOIN_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
-                if (isAdmin) addAll(ADMIN_SUBCOMMANDS)
+                addAll(ADMIN_SUBCOMMANDS.filter { hasAdminAccess(sender, it) })
             }
-            !isAdmin -> emptyList()
+            !hasAdminAccess(sender, args[0].lowercase()) -> emptyList()
             args.size == 2 -> when (args[0].lowercase()) {
                 "delete", "setspawn", "start", "stop" -> arenas.getArenas().map { it.name }
                 else -> emptyList()
@@ -360,6 +364,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         const val JOIN_PERMISSION = "koth.join"
 
         private val PLAYER_SUBCOMMANDS = listOf("join", "leave")
+        private val SINGLE_PERMISSION_SUBCOMMANDS = mapOf(
+            "start" to "koth.start",
+            "stop" to "koth.stop",
+            "reload" to "koth.reload",
+        )
         private val ADMIN_SUBCOMMANDS = listOf(
             "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload"
         )

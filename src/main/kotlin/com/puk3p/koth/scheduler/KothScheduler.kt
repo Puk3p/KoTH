@@ -89,6 +89,15 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
 
     private fun launchScheduled(arena: Arena) {
         val log = plugin.logger
+
+        // minimum-players-online: a scheduled KoTH on an empty server is skipped (manual starts aren't)
+        val minOnline = plugin.configManager.config.getInt("types.${arena.type}.minimum-players-online", 0)
+        val online = plugin.server.onlinePlayers.size
+        if (online < minOnline) {
+            log.info("Skipped scheduled KoTH '${arena.name}': $online player(s) online, $minOnline required.")
+            return
+        }
+
         when (plugin.arenaManager.launch(arena)) {
             StartResult.STARTED -> log.info("Started scheduled KoTH '${arena.name}'.")
             StartResult.JOIN_OPENED -> log.info("Opened /koth join for scheduled KOTH Arena '${arena.name}'.")

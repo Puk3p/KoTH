@@ -20,13 +20,22 @@ commands:
 
 permissions:
   koth.admin:
-    description: Create, edit, start and stop KoTH arenas, and reload the plugin.
+    description: Every /koth admin subcommand; also ignores zone protections and command restrictions.
+    default: op
+  koth.start:
+    description: /koth start only.
+    default: op
+  koth.stop:
+    description: /koth stop only.
+    default: op
+  koth.reload:
+    description: /koth reload only.
     default: op
   koth.join:
     description: Join or leave the KOTH Arena (/koth join, /koth leave).
     default: true
   koth.bypass:
-    description: Ignore KOTH Arena protection and its command lock.
+    description: Ignore zone protections, command restrictions and the KOTH Arena command lock.
     default: op
   fkoth.admin:
     description: /fkoth add, remove, set, reload, debug, sethologram

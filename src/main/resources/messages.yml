@@ -56,7 +56,7 @@ help-player:
 events:
   started: "&aThe &e%type% &aevent at &e%arena% &ahas started! Capture it now!"
   stopped: "&cThe KoTH event at &e%arena% &chas been forcefully stopped."
-  timed-out: "&cThe KoTH event at &e%arena% &cended: nobody captured it in time."
+  timed-out: "&c&lKoTH DRAW! &7The &c%arena% &7KoTH has exceeded the time limit without a winner."
   capturing: "&e%player% &7from &e%faction% &7is capturing &b%arena%&7! (&e%time% &7left)"
   captured: "&a&l%arena% CAPTURED! &e%player% &7from &e%faction% &7won the event!"
   lost-control: "&c%player% lost control of %arena%!"
@@ -124,17 +124,24 @@ fkoth:
   debug-line: "&e%name%: &f%value%"
 
 protection:
-  denied: "&cYou can't do that inside the KoTH arena right now."
+  denied: "&cYou can't do that inside this capture zone."
+  enderpearls: "&cEnderpearls are disabled inside this capture zone!"
+  command-blocked: "&cYou can't use that command inside the KoTH zone."
 
 # Text for %koth_...% placeholders with nothing to show (no KoTH running, nothing scheduled, ...)
 placeholders:
   none: "None"
 
 # Discord embeds (config.yml -> discord). Color codes are stripped; **bold** is Discord markdown.
+# Emoji are written as escapes ("\U0001F3C6" is the trophy): the YAML parser in 1.8.8 rejects most
+# emoji typed directly, even in comments, and would then fail to load this whole file.
 discord:
-  started-title: "KoTH started"
-  started-description: "**%arena%** (%type%) has started! Capture it now!"
-  captured-title: "KoTH captured"
-  captured-description: "**%player%** from **%faction%** captured **%arena%**!"
+  started-title: "⚔️ KoTH Event Active"
+  started-description: "The **%arena%** KoTH is now active! Head to the warzone and battle for control.\n\nType `/koth` in-game for more info."
+  captured-title: "\U0001F3C6 KoTH Conquered!"
+  captured-description: "The **%arena%** event has been successfully captured!"
+  field-champion: "\U0001F451 Champion"
+  field-faction: "\U0001F6E1️ Faction"
+  field-capture-time: "⏱️ Capture Time"
   ended-title: "KoTH ended"
   ended-description: "**%arena%** was stopped before anyone captured it."

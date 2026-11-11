@@ -5,10 +5,15 @@ import com.puk3p.koth.arena.Arena
 import com.puk3p.koth.arena.ArenaState
 import com.puk3p.koth.event.KothCaptureEvent
 import com.puk3p.koth.hooks.FactionsHook
+import com.puk3p.koth.util.ClientDisplay
 import com.puk3p.koth.util.formatTime
 import com.puk3p.koth.util.shouldAnnounce
 import org.bukkit.Bukkit
+import org.bukkit.ChatColor
+import org.bukkit.Color
+import org.bukkit.FireworkEffect
 import org.bukkit.GameMode
+import org.bukkit.entity.Firework
 import org.bukkit.entity.Player
 import org.bukkit.scheduler.BukkitRunnable
 
@@ -33,10 +38,12 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
 
         val config = plugin.configManager.config
 
-        // max-duration: a KoTH nobody captures would otherwise block every later scheduled start
+        // max-run-time: a KoTH nobody captures would otherwise block every later scheduled start
+        // (max-duration is the older name of the same setting)
         activeArena.elapsedSeconds++
-        val maxDuration = config.getInt("types.${activeArena.type}.max-duration", 0)
-        if (maxDuration > 0 && activeArena.elapsedSeconds >= maxDuration) {
+        val typePath = "types.${activeArena.type}"
+        val maxRunTime = config.getInt("$typePath.max-run-time", config.getInt("$typePath.max-duration", 0))
+        if (maxRunTime > 0 && activeArena.elapsedSeconds >= maxRunTime) {
             Bukkit.broadcastMessage(plugin.configManager.messages.get("events.timed-out", "%arena%" to activeArena.name))
             plugin.arenaManager.stopArena(activeArena, broadcast = false) // a KOTH Arena event ends with it
             return
@@ -58,7 +65,7 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 val (team, members) = teams.entries.first()
                 handleCapturing(activeArena, team, members)
             }
-            else -> handleContested(activeArena)
+            else -> handleContested(activeArena, teams.values.flatten())
         }
     }
 
@@ -120,7 +127,8 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         if (arena.remainingSeconds > 0) {
             arena.remainingSeconds--
         }
-        plugin.arenaManager.playSound(arena, "capture-tick", members)
+        plugin.arenaManager.playSound(arena, "capturing-tick", members)
+        actionBar(arena, members, "text", DEFAULT_CAPTURING_BAR)
 
         if (arena.remainingSeconds <= 0) {
             tryCapture(arena, capper)
@@ -155,6 +163,16 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
             )
         }
         Bukkit.broadcastMessage(msg)
+        plugin.arenaManager.showTitle(
+            arena,
+            "title-on-capture",
+            "%player%" to player.name,
+            "%faction%" to faction,
+            "%arena%" to arena.name
+        )
+        if (plugin.configManager.config.getBoolean("types.${arena.type}.visuals.firework-on-capture", true)) {
+            spawnVictoryFirework(player)
+        }
         plugin.discordService.kothCaptured(arena, player.name, faction)
 
         // Give Rewards
@@ -170,13 +188,44 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** Players from more than one team are in the zone. */
-    private fun handleContested(arena: Arena) {
+    private fun handleContested(arena: Arena, playersInZone: List<Player>) {
         if (arena.state != ArenaState.CONTESTED) {
             arena.state = ArenaState.CONTESTED
             val msg = plugin.configManager.messages.get("events.contested", "%arena%" to arena.name)
             Bukkit.broadcastMessage(msg)
+            plugin.arenaManager.playSound(arena, "contested", playersInZone)
         }
-        // In a contested state, timer does not decrement.
+        // In a contested state, timer does not decrement. Tell the players in the zone it's paused.
+        actionBar(arena, playersInZone, "contested-text", DEFAULT_CONTESTED_BAR)
+    }
+
+    /** `types.<type>.visuals.action-bar.<key>` to [players], if the action bar is enabled. */
+    private fun actionBar(arena: Arena, players: List<Player>, key: String, default: String) {
+        val config = plugin.configManager.config
+        val path = "types.${arena.type}.visuals.action-bar"
+        if (!config.getBoolean("$path.enabled", true)) return
+        val text = ChatColor.translateAlternateColorCodes('&', config.getString("$path.$key", default))
+            .replace("%arena%", arena.name)
+            .replace("%time%", formatTime(arena.remainingSeconds))
+        for (player in players) {
+            ClientDisplay.actionBar(player, text, plugin.logger)
+        }
+    }
+
+    private fun spawnVictoryFirework(player: Player) {
+        val firework = player.world.spawn(player.location, Firework::class.java)
+        val meta = firework.fireworkMeta
+        meta.addEffect(
+            FireworkEffect.builder()
+                .withColor(Color.ORANGE, Color.YELLOW)
+                .withFade(Color.RED)
+                .with(FireworkEffect.Type.BALL_LARGE)
+                .trail(true)
+                .flicker(true)
+                .build()
+        )
+        meta.power = 1
+        firework.fireworkMeta = meta
     }
 
     /**
@@ -223,4 +272,8 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         return plugin.factionsHook?.getFaction(player) ?: FactionsHook.NO_FACTION
     }
 
+    companion object {
+        private const val DEFAULT_CAPTURING_BAR = "&b&lCapturing %arena% &8» &f%time%"
+        private const val DEFAULT_CONTESTED_BAR = "&c&lCONTESTED! &7Clear the zone!"
+    }
 }

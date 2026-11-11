@@ -29,6 +29,7 @@ import java.util.Locale
  * | players_in_zone, contested, in_zone | Zone counts; in_zone is for the viewing player |
  * | next, next_time, next_in | Next scheduled arena, when ("Mon 18:00"), and how long until ("2h 15m") |
  * | join_open, join_time_left, participants, joined | KOTH Arena: join phase, players in the arena |
+ * | status, capture_time, capturer, capturer_faction | Older names: "WAITING", "00:00", "None" when idle |
  */
 class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion() {
 
@@ -81,6 +82,20 @@ class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion(
             "join_time_left" -> if (kothArena.isJoinOpen) formatTime(kothArena.secondsLeft) else none
             "participants" -> kothArena.participantCount().toString()
             "joined" -> bool(player != null && kothArena.isParticipant(player.uniqueId))
+
+            // Older names, kept with their original values so existing scoreboards keep working
+            "status" -> active?.state?.name ?: "WAITING"
+            "capture_time" -> formatTime(active?.remainingSeconds ?: 0)
+            "capturer" -> if (active == null) "None" else active.capturingPlayerName ?: "None"
+            "capturer_faction" -> {
+                val capperId = active?.capturingPlayer
+                val capper = capperId?.let { Bukkit.getPlayer(it) }
+                when {
+                    capperId == null -> "None"
+                    capper == null -> FactionsHook.NO_FACTION
+                    else -> plugin.factionsHook?.getFaction(capper) ?: FactionsHook.NO_FACTION
+                }
+            }
 
             else -> null // unknown placeholder: PlaceholderAPI leaves it as typed
         }

@@ -209,7 +209,20 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
             finish()
             return
         }
+        sweepOutsiders(arena)
         tellParticipants("fight-started")
+    }
+
+    /** Players camping in the capture zone who didn't join are sent to the exit (staff may stay). */
+    private fun sweepOutsiders(arena: Arena) {
+        val exit = exitLocation()
+        for (player in Bukkit.getOnlinePlayers()) {
+            if (player.uniqueId in participants || !arena.region.contains(player.location)) continue
+            if (player.hasPermission("koth.bypass") || player.hasPermission("koth.admin")) continue
+            if (player.getMetadata("vanished").any { it.asBoolean() }) continue
+            teleport(player, exit)
+            player.sendMessage(prefixed("zone-denied"))
+        }
     }
 
     /** Called by the capture loop after a capture, before the arena goes idle. */

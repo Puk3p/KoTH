@@ -76,7 +76,8 @@ class ConfigManager(private val plugin: KoTHPlugin) {
     }
 
     /**
-     * Reloads all configurations from disk.
+     * Reloads the YAML files from disk. Rebuilding the arenas from arenas.yml is up to the caller
+     * (/koth reload), which first makes sure no KoTH is running: a rebuild would drop its progress.
      */
     fun reload() {
         loadAll()

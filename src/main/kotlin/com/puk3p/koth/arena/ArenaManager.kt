@@ -3,7 +3,9 @@ package com.puk3p.koth.arena
 import com.puk3p.koth.KoTHPlugin
 import com.puk3p.koth.event.KothStartEvent
 import com.puk3p.koth.scheduler.ScheduleParser
+import com.puk3p.koth.util.ClientDisplay
 import org.bukkit.Bukkit
+import org.bukkit.ChatColor
 import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.configuration.ConfigurationSection
@@ -233,6 +235,7 @@ class ArenaManager(private val plugin: KoTHPlugin) {
             )
         )
         playSound(arena, "start")
+        showTitle(arena, "title-on-start", "%arena%" to arena.name, "%type%" to arena.type)
         plugin.discordService.kothStarted(arena)
         return StartResult.STARTED
     }
@@ -275,11 +278,27 @@ class ArenaManager(private val plugin: KoTHPlugin) {
 
     /**
      * Plays `types.<type>.sounds.<key>` to the given players (everyone online by default), if configured.
+     * The entry is either a sound name or a section `{ sound, volume, pitch, enabled }`.
      * An invalid sound name is logged once per config path, not on every call.
      */
     fun playSound(arena: Arena, key: String, players: Collection<Player> = Bukkit.getOnlinePlayers()) {
-        val path = "types.${arena.type}.sounds.$key"
-        val name = plugin.configManager.config.getString(path) ?: return
+        val config = plugin.configManager.config
+        val base = "types.${arena.type}.sounds"
+        // Older configs name the tick sound "capture-tick"
+        val path = (listOf(key) + SOUND_ALIASES[key].orEmpty()).map { "$base.$it" }.firstOrNull { config.contains(it) } ?: return
+
+        val name: String
+        var volume = 1f
+        var pitch = 1f
+        if (config.isConfigurationSection(path)) {
+            if (!config.getBoolean("$path.enabled", true)) return
+            name = config.getString("$path.sound") ?: return
+            volume = config.getDouble("$path.volume", 1.0).toFloat()
+            pitch = config.getDouble("$path.pitch", 1.0).toFloat()
+        } else {
+            name = config.getString(path) ?: return
+        }
+
         val sound = try {
             Sound.valueOf(name.uppercase())
         } catch (e: IllegalArgumentException) {
@@ -289,14 +308,38 @@ class ArenaManager(private val plugin: KoTHPlugin) {
             return
         }
         for (player in players) {
-            player.playSound(player.location, sound, 1f, 1f)
+            player.playSound(player.location, sound, volume, pitch)
         }
     }
 
     private val invalidSoundPaths = mutableSetOf<String>()
 
+    /**
+     * Shows `types.<type>.visuals.<key>` (`{ enabled, title, subtitle, fade-in, stay, fade-out }`,
+     * times in ticks) to everyone online, if configured.
+     */
+    fun showTitle(arena: Arena, key: String, vararg placeholders: Pair<String, String>) {
+        val config = plugin.configManager.config
+        val path = "types.${arena.type}.visuals.$key"
+        if (!config.isConfigurationSection(path) || !config.getBoolean("$path.enabled", true)) return
+
+        fun text(field: String): String {
+            val raw = ChatColor.translateAlternateColorCodes('&', config.getString("$path.$field", ""))
+            return placeholders.fold(raw) { acc, (from, to) -> acc.replace(from, to) }
+        }
+        val title = text("title")
+        val subtitle = text("subtitle")
+        val fadeIn = config.getInt("$path.fade-in", 10)
+        val stay = config.getInt("$path.stay", 40)
+        val fadeOut = config.getInt("$path.fade-out", 10)
+        for (player in Bukkit.getOnlinePlayers()) {
+            ClientDisplay.title(player, title, subtitle, fadeIn, stay, fadeOut, plugin.logger)
+        }
+    }
+
     companion object {
         private const val ROOT = "arenas"
         private val REGION_KEYS = listOf("min-x", "min-y", "min-z", "max-x", "max-y", "max-z")
+        private val SOUND_ALIASES = mapOf("capturing-tick" to listOf("capture-tick"))
     }
 }
