@@ -12,7 +12,6 @@ import org.bukkit.event.HandlerList
  * still alone in the zone, the event fires again on the next tick (once per second).
  */
 class KothCaptureEvent(val arena: Arena, val capturer: Player) : Event(), Cancellable {
-
     private var isCancelled = false
 
     override fun isCancelled(): Boolean {

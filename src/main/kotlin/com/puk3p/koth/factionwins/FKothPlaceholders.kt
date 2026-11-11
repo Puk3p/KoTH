@@ -2,6 +2,7 @@ package com.puk3p.koth.factionwins
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import org.bukkit.OfflinePlayer
+import java.util.Objects
 
 /**
  * %fkoth_...% placeholders, same names as the FKothWins addon so existing scoreboards keep working:
@@ -23,6 +24,9 @@ class FKothPlaceholders(
 
     // Stay registered across /papi reload; FactionWinsModule unregisters on disable.
     override fun persist(): Boolean = true
+
+    // PlaceholderExpansion.equals compares identifier, author and version; keep hashCode consistent
+    override fun hashCode(): Int = Objects.hash(identifier, author, version)
 
     override fun onRequest(
         player: OfflinePlayer?,

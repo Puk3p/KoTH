@@ -13,6 +13,7 @@ import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.Objects
 
 /**
  * %koth_<placeholder>% for PlaceholderAPI. Only instantiate when PlaceholderAPI is installed.
@@ -32,7 +33,6 @@ import java.util.Locale
  * | status, capture_time, capturer, capturer_faction | Older names: "WAITING", "00:00", "None" when idle |
  */
 class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion() {
-
     override fun getIdentifier(): String = "koth"
 
     override fun getAuthor(): String = plugin.description.authors.joinToString()
@@ -42,7 +42,13 @@ class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion(
     // Stay registered across /papi reload; KoTHPlugin unregisters on disable.
     override fun persist(): Boolean = true
 
-    override fun onRequest(player: OfflinePlayer?, params: String): String? {
+    // PlaceholderExpansion.equals compares identifier, author and version; keep hashCode consistent
+    override fun hashCode(): Int = Objects.hash(identifier, author, version)
+
+    override fun onRequest(
+        player: OfflinePlayer?,
+        params: String,
+    ): String? {
         val arenas = plugin.arenaManager
         val kothArena = plugin.kothArena
         val active = arenas.getActiveArena()
@@ -52,12 +58,13 @@ class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion(
         return when (params.lowercase()) {
             "active" -> busy?.name ?: none
             "active_type" -> busy?.type ?: none
-            "state" -> when {
-                active != null -> active.state.name
-                kothArena.phase == KothArenaManager.Phase.JOIN -> "JOIN"
-                kothArena.phase == KothArenaManager.Phase.POST_CAPTURE -> "POST_CAPTURE"
-                else -> none
-            }
+            "state" ->
+                when {
+                    active != null -> active.state.name
+                    kothArena.phase == KothArenaManager.Phase.JOIN -> "JOIN"
+                    kothArena.phase == KothArenaManager.Phase.POST_CAPTURE -> "POST_CAPTURE"
+                    else -> none
+                }
             "time_left" -> active?.let { formatTime(it.remainingSeconds) } ?: none
             "time_left_seconds" -> (active?.remainingSeconds ?: 0).toString()
             "capper" -> active?.capturingPlayerName ?: none
@@ -74,9 +81,10 @@ class PlaceholderAPIHook(private val plugin: KoTHPlugin) : PlaceholderExpansion(
 
             "next" -> plugin.kothScheduler.nextStart()?.first?.name ?: none
             "next_time" -> plugin.kothScheduler.nextStart()?.second?.format(NEXT_TIME_FORMAT) ?: none
-            "next_in" -> plugin.kothScheduler.nextStart()?.let { (_, at) ->
-                formatDuration(Duration.between(ZonedDateTime.now(at.zone), at).seconds)
-            } ?: none
+            "next_in" ->
+                plugin.kothScheduler.nextStart()?.let { (_, at) ->
+                    formatDuration(Duration.between(ZonedDateTime.now(at.zone), at).seconds)
+                } ?: none
 
             "join_open" -> bool(kothArena.isJoinOpen)
             "join_time_left" -> if (kothArena.isJoinOpen) formatTime(kothArena.secondsLeft) else none

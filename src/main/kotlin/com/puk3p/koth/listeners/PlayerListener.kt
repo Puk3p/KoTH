@@ -20,7 +20,6 @@ import java.util.UUID
  * Keeps the active arena's `playersInside` in sync with where players actually are.
  */
 class PlayerListener(private val plugin: KoTHPlugin) : Listener {
-
     /**
      * KOTH Arena: pushes back players who aren't in the event when they walk into the zone.
      * Runs at HIGH (not MONITOR) because it cancels the event.
@@ -45,7 +44,11 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
     }
 
     /** True (and tells the player why) when [player] crosses into the active zone but may not count there. */
-    private fun isEntryDenied(player: Player, from: Location, to: Location): Boolean {
+    private fun isEntryDenied(
+        player: Player,
+        from: Location,
+        to: Location,
+    ): Boolean {
         val arenas = plugin.arenaManager
         val arena = arenas.getActiveArena() ?: return false
         if (!arena.region.contains(to) || arena.region.contains(from)) return false
@@ -103,12 +106,16 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
         val player = event.player
         // Logged out while in the KOTH Arena: they'd log back in inside it, so send them to the exit.
         // One tick later, because teleporting during the join event isn't reliable.
-        val loginExit = plugin.kothArena.takeLoginLocation(player.uniqueId)
-            ?: outsiderInEventZone(player) // logged in inside a running KOTH Arena zone without being in it
+        val loginExit =
+            plugin.kothArena.takeLoginLocation(player.uniqueId)
+                ?: outsiderInEventZone(player) // logged in inside a running KOTH Arena zone without being in it
         if (loginExit != null) {
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                if (player.isOnline) player.teleport(loginExit)
-            })
+            plugin.server.scheduler.runTask(
+                plugin,
+                Runnable {
+                    if (player.isOnline) player.teleport(loginExit)
+                },
+            )
             return
         }
         updateZone(player, player.location)
@@ -158,7 +165,10 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
     }
 
     /** Adds or removes the player depending on whether [location] is inside the active zone. */
-    private fun updateZone(player: Player, location: Location) {
+    private fun updateZone(
+        player: Player,
+        location: Location,
+    ) {
         val arena = plugin.arenaManager.getActiveArena() ?: return
         val uuid = player.uniqueId
         if (arena.region.contains(location) && plugin.arenaManager.canEnter(arena, uuid)) {
@@ -168,7 +178,10 @@ class PlayerListener(private val plugin: KoTHPlugin) : Listener {
         }
     }
 
-    private fun changedBlock(from: Location, to: Location): Boolean {
+    private fun changedBlock(
+        from: Location,
+        to: Location,
+    ): Boolean {
         return from.blockX != to.blockX || from.blockY != to.blockY || from.blockZ != to.blockZ ||
             from.world != to.world
     }

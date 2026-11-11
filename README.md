@@ -99,6 +99,7 @@ A highly customizable King of the Hill (KoTH) plugin built for competitive facti
 
 | Command | Permission | Description |
 |---|---|---|
+| `/koth wand` | `koth.admin` | Gives the selection wand: left click a block for corner 1, right click for corner 2. |
 | `/koth pos1` / `/koth pos2` | `koth.admin` | Sets the corners of the capture zone to your current position. |
 | `/koth create <name> <type>` | `koth.admin` | Creates an arena from your selection with a type from `config.yml`. |
 | `/koth setspawn <name>` | `koth.admin` | Sets an arena's spawn point. |
@@ -119,17 +120,15 @@ A highly customizable King of the Hill (KoTH) plugin built for competitive facti
 
 ## 🛠️ Step-by-Step Arena Setup Guide
 
-1. **Set Corner 1** — Stand at the first corner of your capture zone and type:
+1. **Get the Wand** — Type:
 
    ```
-   /koth pos1
+   /koth wand
    ```
 
-2. **Set Corner 2** — Walk diagonally across to the opposite corner, a few blocks higher (the zone covers the whole height between the two corners), and type:
+2. **Select the Zone** — Left click the block at one corner of the capture zone and right click the block at the opposite corner, a few blocks higher (the zone covers the whole height between the two blocks). The clicked blocks aren't broken, and the selection's size is shown once both corners are set. While you hold the wand (and for 10 seconds after setting a corner) you see the selection in particles, visible only to you: a green column at corner 1, a red one at corner 2, then the zone's full outline.
 
-   ```
-   /koth pos2
-   ```
+   No wand? Stand at each corner and use `/koth pos1` and `/koth pos2` instead: they take the block you're standing in.
 
 3. **Create the Arena** — Use an arena name and a type key defined in `config.yml`:
 

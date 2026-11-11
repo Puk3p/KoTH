@@ -1,5 +1,5 @@
 name: KoTH
-version: 1.0.0
+version: ${project.version}
 main: com.puk3p.koth.KoTHPlugin
 author: Puk3p
 description: Advanced KoTH Plugin optimized for large faction servers.

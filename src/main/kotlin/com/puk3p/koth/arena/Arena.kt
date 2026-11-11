@@ -11,12 +11,13 @@ import java.util.UUID
  */
 class Arena(
     val name: String,
-    val type: String, // Maps to the config type (e.g., "superkoth")
+    // Maps to the config type (e.g., "superkoth")
+    val type: String,
     val region: Region,
     var spawnPoint: Location? = null,
     var isEnabled: Boolean = true,
     // Weekly start slots, read from arenas.yml (edited by hand, applied with /koth reload)
-    val schedule: List<ScheduleEntry> = emptyList()
+    val schedule: List<ScheduleEntry> = emptyList(),
 ) {
     @Volatile
     var state: ArenaState = ArenaState.WAITING
@@ -58,8 +59,8 @@ class Arena(
 }
 
 enum class ArenaState {
-    WAITING,    // KoTH is not active
-    RUNNING,    // KoTH is active, someone might be capturing
-    CONTESTED,  // Players from more than one team in the zone
-    ENDED       // Capture finished, waiting for cleanup
+    WAITING, // KoTH is not active
+    RUNNING, // KoTH is active, someone might be capturing
+    CONTESTED, // Players from more than one team in the zone
+    ENDED, // Capture finished, waiting for cleanup
 }

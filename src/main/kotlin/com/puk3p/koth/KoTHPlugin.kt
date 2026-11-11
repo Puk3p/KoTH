@@ -2,28 +2,34 @@ package com.puk3p.koth
 
 import com.puk3p.koth.arena.ArenaManager
 import com.puk3p.koth.commands.KothCommand
+import com.puk3p.koth.commands.SelectionManager
+import com.puk3p.koth.commands.SelectionVisualizer
 import com.puk3p.koth.config.ConfigManager
 import com.puk3p.koth.factionwins.FactionWinsModule
 import com.puk3p.koth.factionwins.FkothCommand
 import com.puk3p.koth.hooks.FactionsHook
 import com.puk3p.koth.hooks.PlaceholderAPIHook
-import com.puk3p.koth.services.DiscordService
+import com.puk3p.koth.kotharena.KothArenaManager
 import com.puk3p.koth.listeners.PlayerListener
 import com.puk3p.koth.listeners.ProtectionListener
+import com.puk3p.koth.listeners.WandListener
 import com.puk3p.koth.scheduler.KothScheduler
+import com.puk3p.koth.services.DiscordService
 import com.puk3p.koth.services.RewardService
 import com.puk3p.koth.tasks.CaptureTickTask
-import com.puk3p.koth.kotharena.KothArenaManager
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.logging.Level
 
 class KoTHPlugin : JavaPlugin() {
-
     lateinit var configManager: ConfigManager
         private set
     lateinit var arenaManager: ArenaManager
         private set
     lateinit var kothArena: KothArenaManager
+        private set
+
+    /** Pending zone selections (/koth pos1, /koth pos2, the wand). */
+    lateinit var selections: SelectionManager
         private set
     lateinit var rewardService: RewardService
         private set
@@ -73,6 +79,9 @@ class KoTHPlugin : JavaPlugin() {
         // 3. Register Listeners
         server.pluginManager.registerEvents(PlayerListener(this), this)
         server.pluginManager.registerEvents(ProtectionListener(this), this)
+        selections = SelectionManager(this)
+        server.pluginManager.registerEvents(WandListener(this), this)
+        SelectionVisualizer(this).runTaskTimer(this, SelectionVisualizer.PERIOD_TICKS, SelectionVisualizer.PERIOD_TICKS)
 
         // 4. Register Commands
         val kothCommand = KothCommand(this)

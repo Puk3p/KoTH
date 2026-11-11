@@ -42,7 +42,6 @@ import org.bukkit.event.player.PlayerTeleportEvent
  * Players with koth.bypass or koth.admin ignore protections and command restrictions.
  */
 class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
-
     // ------------------------------------------------------------------ //
     //  Zone protections: player actions
     // ------------------------------------------------------------------ //
@@ -115,11 +114,12 @@ class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
     /** Lava/water flowing into or inside the zone. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     fun onLiquidFlow(event: BlockFromToEvent) {
-        val key = when (event.block.type) {
-            Material.LAVA, Material.STATIONARY_LAVA -> "lava-flow"
-            Material.WATER, Material.STATIONARY_WATER -> "water-flow"
-            else -> return
-        }
+        val key =
+            when (event.block.type) {
+                Material.LAVA, Material.STATIONARY_LAVA -> "lava-flow"
+                Material.WATER, Material.STATIONARY_WATER -> "water-flow"
+                else -> return
+            }
         if (protects(event.toBlock.location, key)) {
             event.isCancelled = true
         }
@@ -156,10 +156,16 @@ class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
     }
 
     /** True when the piston, a moved block, or where a moved block ends up is in [region]. */
-    private fun pistonTouches(region: Region, piston: Block, moved: List<Block>, vararg directions: BlockFace): Boolean {
-        return region.contains(piston.location) || moved.any { block ->
-            region.contains(block.location) || directions.any { region.contains(block.getRelative(it).location) }
-        }
+    private fun pistonTouches(
+        region: Region,
+        piston: Block,
+        moved: List<Block>,
+        vararg directions: BlockFace,
+    ): Boolean {
+        return region.contains(piston.location) ||
+            moved.any { block ->
+                region.contains(block.location) || directions.any { region.contains(block.getRelative(it).location) }
+            }
     }
 
     // ------------------------------------------------------------------ //
@@ -217,11 +223,12 @@ class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     fun onAttack(event: EntityDamageByEntityEvent) {
-        val attacker = when (val damager = event.damager) {
-            is Player -> damager
-            is Projectile -> damager.shooter as? Player
-            else -> null
-        } ?: return
+        val attacker =
+            when (val damager = event.damager) {
+                is Player -> damager
+                is Projectile -> damager.shooter as? Player
+                else -> null
+            } ?: return
 
         val kothArena = plugin.kothArena
         if (kothArena.isInvincible(attacker.uniqueId)) {
@@ -244,12 +251,18 @@ class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
         return player.hasPermission(BYPASS_PERMISSION) || player.hasPermission(ADMIN_PERMISSION)
     }
 
-    private fun protects(arena: Arena, key: String): Boolean {
+    private fun protects(
+        arena: Arena,
+        key: String,
+    ): Boolean {
         return plugin.configManager.config.getBoolean("types.${arena.type}.protections.$key", false)
     }
 
     /** True if [location] is in a zone whose type protects any of [keys]. */
-    private fun protects(location: Location, vararg keys: String): Boolean {
+    private fun protects(
+        location: Location,
+        vararg keys: String,
+    ): Boolean {
         val arena = plugin.arenaManager.getArenaAt(location) ?: return false
         return keys.any { protects(arena, it) }
     }
@@ -282,10 +295,16 @@ class ProtectionListener(private val plugin: KoTHPlugin) : Listener {
          * Whether a typed command is on the allowed list: "msg" allows "/msg Bob hi", "f who" allows
          * "/f who x" but not "/f home"; "/essentials:msg" counts as "msg". Case-insensitive, whole words.
          */
-        fun isAllowedCommand(message: String, allowed: List<String>): Boolean = matchesAny(message, allowed + ALWAYS_ALLOWED)
+        fun isAllowedCommand(
+            message: String,
+            allowed: List<String>,
+        ): Boolean = matchesAny(message, allowed + ALWAYS_ALLOWED)
 
         /** Whether a typed command matches an entry of [list] (same rules as [isAllowedCommand]). */
-        fun matchesAny(message: String, list: List<String>): Boolean {
+        fun matchesAny(
+            message: String,
+            list: List<String>,
+        ): Boolean {
             val typed = normalize(message)
             return list.map { normalize(it) }.any { it.isNotEmpty() && (typed == it || typed.startsWith("$it ")) }
         }

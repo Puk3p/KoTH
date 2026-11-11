@@ -14,7 +14,6 @@ import java.nio.file.Files
 import java.util.logging.Level
 
 class ConfigManager(private val plugin: KoTHPlugin) {
-
     lateinit var config: FileConfiguration
         private set
     lateinit var arenasConfig: FileConfiguration
@@ -26,8 +25,11 @@ class ConfigManager(private val plugin: KoTHPlugin) {
         private set
 
     fun loadAll() {
-        if (!plugin.dataFolder.exists()) {
-            plugin.dataFolder.mkdirs()
+        try {
+            Files.createDirectories(plugin.dataFolder.toPath())
+        } catch (e: IOException) {
+            // Every file below then fails to save too, so say why up front
+            plugin.logger.log(Level.SEVERE, "Could not create the plugin folder ${plugin.dataFolder}", e)
         }
 
         // 1. Load Main Config (Settings, KoTH Types)
@@ -60,7 +62,11 @@ class ConfigManager(private val plugin: KoTHPlugin) {
      * @throws IOException if the file can't be read or written
      * @throws InvalidConfigurationException if the result wouldn't parse (nothing is written then)
      */
-    fun saveLocation(parent: String, child: String, location: Location) {
+    fun saveLocation(
+        parent: String,
+        child: String,
+        location: Location,
+    ) {
         val file = File(plugin.dataFolder, "config.yml")
         val text = String(Files.readAllBytes(file.toPath()), Charsets.UTF_8)
         val updated = ConfigLocations.setBlock(text, parent, child, ConfigLocations.toYamlLines(location))
@@ -93,7 +99,10 @@ class ConfigManager(private val plugin: KoTHPlugin) {
      * file on disk resolve to the bundled value. Not used for config.yml: defaults would resurrect
      * KoTH types an admin deliberately removed.
      */
-    private fun loadYamlFile(fileName: String, withJarDefaults: Boolean = false): FileConfiguration {
+    private fun loadYamlFile(
+        fileName: String,
+        withJarDefaults: Boolean = false,
+    ): FileConfiguration {
         val file = File(plugin.dataFolder, fileName)
         if (!file.exists()) {
             plugin.logger.info("Generating default $fileName...")
@@ -112,7 +121,7 @@ class ConfigManager(private val plugin: KoTHPlugin) {
                 "$fileName is not valid YAML, so it was NOT loaded (the plugin sees it as empty). " +
                     "Fix the file and run /koth reload. A copy was saved as ${backup ?: "(backup failed)"}, " +
                     "in case a command overwrites $fileName in the meantime.",
-                e
+                e,
             )
         }
 

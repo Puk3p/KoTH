@@ -7,13 +7,11 @@ import com.puk3p.koth.arena.ArenaState
 import com.puk3p.koth.arena.Region
 import com.puk3p.koth.config.Messages
 import com.puk3p.koth.kotharena.KothArenaManager
-import org.bukkit.Location
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
-import java.util.UUID
 import java.util.logging.Level
 
 /**
@@ -21,33 +19,33 @@ import java.util.logging.Level
  * everything else needs [ADMIN_PERMISSION] (or koth.start / koth.stop / koth.reload for just those).
  */
 class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabCompleter {
-
-    private class Selection {
-        var pos1: Location? = null
-        var pos2: Location? = null
-    }
-
-    private val selections = HashMap<UUID, Selection>()
+    private val selections get() = plugin.selections
 
     // Looked up on every use: /koth reload replaces the Messages instance.
     private val messages: Messages get() = plugin.configManager.messages
     private val arenas get() = plugin.arenaManager
 
-    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
+    override fun onCommand(
+        sender: CommandSender,
+        command: Command,
+        label: String,
+        args: Array<String>,
+    ): Boolean {
         val sub = args.firstOrNull()?.lowercase() ?: "help"
         if (sub == "help") {
             showHelp(sender, label)
             return true
         }
 
-        val allowed = when (sub) {
-            in PLAYER_SUBCOMMANDS -> sender.hasPermission(JOIN_PERMISSION)
-            in ADMIN_SUBCOMMANDS -> hasAdminAccess(sender, sub)
-            else -> {
-                sender.sendMessage(messages.get("general.unknown-subcommand", "%label%" to label))
-                return true
+        val allowed =
+            when (sub) {
+                in PLAYER_SUBCOMMANDS -> sender.hasPermission(JOIN_PERMISSION)
+                in ADMIN_SUBCOMMANDS -> hasAdminAccess(sender, sub)
+                else -> {
+                    sender.sendMessage(messages.get("general.unknown-subcommand", "%label%" to label))
+                    return true
+                }
             }
-        }
         if (!allowed) {
             sender.sendMessage(messages.get("general.no-permission"))
             return true
@@ -58,6 +56,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             "leave" -> leave(sender)
             "pos1" -> setPosition(sender, first = true)
             "pos2" -> setPosition(sender, first = false)
+            "wand" -> giveWand(sender)
             "create" -> create(sender, label, args)
             "delete" -> delete(sender, label, args)
             "setspawn" -> setSpawn(sender, label, args)
@@ -72,20 +71,27 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
     }
 
     /** koth.admin allows every admin subcommand; koth.start / koth.stop / koth.reload allow just their own. */
-    private fun hasAdminAccess(sender: CommandSender, sub: String): Boolean {
+    private fun hasAdminAccess(
+        sender: CommandSender,
+        sub: String,
+    ): Boolean {
         if (sender.hasPermission(ADMIN_PERMISSION)) return true
         return SINGLE_PERMISSION_SUBCOMMANDS[sub]?.let { sender.hasPermission(it) } ?: false
     }
 
-    private fun showHelp(sender: CommandSender, label: String) {
-        val path = when {
-            sender.hasPermission(ADMIN_PERMISSION) -> "help"
-            sender.hasPermission(JOIN_PERMISSION) -> "help-player"
-            else -> {
-                sender.sendMessage(messages.get("general.no-permission"))
-                return
+    private fun showHelp(
+        sender: CommandSender,
+        label: String,
+    ) {
+        val path =
+            when {
+                sender.hasPermission(ADMIN_PERMISSION) -> "help"
+                sender.hasPermission(JOIN_PERMISSION) -> "help-player"
+                else -> {
+                    sender.sendMessage(messages.get("general.no-permission"))
+                    return
+                }
             }
-        }
         messages.getList(path, "%label%" to label).forEach { sender.sendMessage(it) }
     }
 
@@ -95,14 +101,15 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
 
     private fun join(sender: CommandSender) {
         val player = requirePlayer(sender) ?: return
-        val path = when (plugin.kothArena.join(player)) {
-            KothArenaManager.JoinResult.JOINED -> "joined"
-            KothArenaManager.JoinResult.ALREADY_JOINED -> "already-joined"
-            KothArenaManager.JoinResult.NOT_OPEN -> "join-closed"
-            KothArenaManager.JoinResult.CANNOT_REJOIN -> "cannot-rejoin"
-            KothArenaManager.JoinResult.NO_LOCATION -> "no-location"
-            KothArenaManager.JoinResult.TELEPORT_FAILED -> "teleport-failed"
-        }
+        val path =
+            when (plugin.kothArena.join(player)) {
+                KothArenaManager.JoinResult.JOINED -> "joined"
+                KothArenaManager.JoinResult.ALREADY_JOINED -> "already-joined"
+                KothArenaManager.JoinResult.NOT_OPEN -> "join-closed"
+                KothArenaManager.JoinResult.CANNOT_REJOIN -> "cannot-rejoin"
+                KothArenaManager.JoinResult.NO_LOCATION -> "no-location"
+                KothArenaManager.JoinResult.TELEPORT_FAILED -> "teleport-failed"
+            }
         sender.sendMessage(plugin.kothArena.prefixed(path))
     }
 
@@ -116,23 +123,30 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
     //  Admin subcommands
     // ------------------------------------------------------------------ //
 
-    private fun setPosition(sender: CommandSender, first: Boolean) {
+    /** /koth pos1, /koth pos2: the block the player stands in. */
+    private fun setPosition(
+        sender: CommandSender,
+        first: Boolean,
+    ) {
         val player = requirePlayer(sender) ?: return
-        val location = player.location
-        val selection = selections.getOrPut(player.uniqueId) { Selection() }
-        if (first) selection.pos1 = location else selection.pos2 = location
-
-        sender.sendMessage(
-            messages.get(
-                if (first) "admin.pos1-set" else "admin.pos2-set",
-                "%x%" to location.blockX.toString(),
-                "%y%" to location.blockY.toString(),
-                "%z%" to location.blockZ.toString()
-            )
-        )
+        selections.setCorner(player, first, player.location)
     }
 
-    private fun create(sender: CommandSender, label: String, args: Array<String>) {
+    /** /koth wand: left click a block for pos1, right click for pos2 (see WandListener). */
+    private fun giveWand(sender: CommandSender) {
+        val player = requirePlayer(sender) ?: return
+        // A full inventory: drop it at the player's feet rather than lose it
+        player.inventory.addItem(selections.createWand()).values.forEach {
+            player.world.dropItemNaturally(player.location, it)
+        }
+        sender.sendMessage(messages.get("admin.wand-given"))
+    }
+
+    private fun create(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+    ) {
         val player = requirePlayer(sender) ?: return
         if (args.size < 3) return usage(sender, "/$label create <name> <type>")
 
@@ -151,7 +165,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             return
         }
 
-        val selection = selections[player.uniqueId]
+        val selection = selections.get(player.uniqueId)
         val pos1 = selection?.pos1
         val pos2 = selection?.pos2
         if (pos1 == null || pos2 == null) {
@@ -174,7 +188,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         val arena = Arena(name, type, region)
         arenas.addArena(arena)
         arenas.saveArena(arena)
-        selections.remove(player.uniqueId)
+        selections.clear(player.uniqueId)
 
         sender.sendMessage(messages.get("admin.arena-created", "%arena%" to arena.name, "%type%" to type))
         if (selectedHeight < MIN_ZONE_HEIGHT) {
@@ -182,13 +196,17 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                 messages.get(
                     "admin.region-expanded",
                     "%selected%" to selectedHeight.toString(),
-                    "%height%" to MIN_ZONE_HEIGHT.toString()
-                )
+                    "%height%" to MIN_ZONE_HEIGHT.toString(),
+                ),
             )
         }
     }
 
-    private fun delete(sender: CommandSender, label: String, args: Array<String>) {
+    private fun delete(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+    ) {
         val arena = requireArena(sender, args, "/$label delete <name>") ?: return
         if (arena.state != ArenaState.WAITING || arena == arenas.busyArena()) {
             sender.sendMessage(messages.get("admin.arena-busy", "%arena%" to arena.name))
@@ -198,7 +216,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         sender.sendMessage(messages.get("admin.arena-deleted", "%arena%" to arena.name))
     }
 
-    private fun setSpawn(sender: CommandSender, label: String, args: Array<String>) {
+    private fun setSpawn(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+    ) {
         val player = requirePlayer(sender) ?: return
         val arena = requireArena(sender, args, "/$label setspawn <name>") ?: return
         arena.spawnPoint = player.location
@@ -207,7 +229,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
     }
 
     /** /koth setarena, /koth setexit: writes koth-arena.<key> in config.yml (comments are kept). */
-    private fun setKothArenaLocation(sender: CommandSender, key: String, messagePath: String) {
+    private fun setKothArenaLocation(
+        sender: CommandSender,
+        key: String,
+        messagePath: String,
+    ) {
         val player = requirePlayer(sender) ?: return
         val location = player.location
         try {
@@ -223,8 +249,8 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                 "%world%" to location.world.name,
                 "%x%" to location.blockX.toString(),
                 "%y%" to location.blockY.toString(),
-                "%z%" to location.blockZ.toString()
-            )
+                "%z%" to location.blockZ.toString(),
+            ),
         )
     }
 
@@ -242,8 +268,8 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                     "%arena%" to arena.name,
                     "%type%" to arena.type,
                     "%state%" to stateLabel(arena),
-                    "%enabled%" to if (arena.isEnabled) "yes" else "no"
-                )
+                    "%enabled%" to if (arena.isEnabled) "yes" else "no",
+                ),
             )
         }
     }
@@ -258,7 +284,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         }
     }
 
-    private fun start(sender: CommandSender, label: String, args: Array<String>) {
+    private fun start(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+    ) {
         val arena = requireArena(sender, args, "/$label start <name>") ?: return
         when (arenas.launch(arena)) {
             StartResult.STARTED, StartResult.JOIN_OPENED -> Unit // already broadcast to everyone
@@ -267,22 +297,27 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                 sender.sendMessage(messages.get("admin.already-running", "%arena%" to arena.name))
             StartResult.ANOTHER_RUNNING ->
                 sender.sendMessage(
-                    messages.get("admin.another-running", "%arena%" to (arenas.busyArena()?.name ?: "?"))
+                    messages.get("admin.another-running", "%arena%" to (arenas.busyArena()?.name ?: "?")),
                 )
             StartResult.CANCELLED ->
                 sender.sendMessage(messages.get("admin.start-cancelled", "%arena%" to arena.name))
         }
     }
 
-    private fun stop(sender: CommandSender, label: String, args: Array<String>) {
-        val arena = if (args.size >= 2) {
-            requireArena(sender, args, "/$label stop [name]") ?: return
-        } else {
-            arenas.busyArena() ?: run {
-                sender.sendMessage(messages.get("admin.not-running"))
-                return
+    private fun stop(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+    ) {
+        val arena =
+            if (args.size >= 2) {
+                requireArena(sender, args, "/$label stop [name]") ?: return
+            } else {
+                arenas.busyArena() ?: run {
+                    sender.sendMessage(messages.get("admin.not-running"))
+                    return
+                }
             }
-        }
         if (arena == plugin.kothArena.arena) {
             plugin.kothArena.cancel() // any phase; teleports everyone out
             return
@@ -319,7 +354,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
     }
 
     /** Resolves args[1] to an arena, replying with usage / not-found on failure. */
-    private fun requireArena(sender: CommandSender, args: Array<String>, usage: String): Arena? {
+    private fun requireArena(
+        sender: CommandSender,
+        args: Array<String>,
+        usage: String,
+    ): Arena? {
         if (args.size < 2) {
             usage(sender, usage)
             return null
@@ -331,7 +370,10 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         return arena
     }
 
-    private fun usage(sender: CommandSender, usage: String) {
+    private fun usage(
+        sender: CommandSender,
+        usage: String,
+    ) {
         sender.sendMessage(messages.get("general.invalid-args", "%usage%" to usage))
     }
 
@@ -339,22 +381,25 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         sender: CommandSender,
         command: Command,
         alias: String,
-        args: Array<String>
+        args: Array<String>,
     ): List<String> {
-        val options: Collection<String> = when {
-            args.size == 1 -> buildList {
-                add("help")
-                if (sender.hasPermission(JOIN_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
-                addAll(ADMIN_SUBCOMMANDS.filter { hasAdminAccess(sender, it) })
-            }
-            !hasAdminAccess(sender, args[0].lowercase()) -> emptyList()
-            args.size == 2 -> when (args[0].lowercase()) {
-                "delete", "setspawn", "start", "stop" -> arenas.getArenas().map { it.name }
+        val options: Collection<String> =
+            when {
+                args.size == 1 ->
+                    buildList {
+                        add("help")
+                        if (sender.hasPermission(JOIN_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
+                        addAll(ADMIN_SUBCOMMANDS.filter { hasAdminAccess(sender, it) })
+                    }
+                !hasAdminAccess(sender, args[0].lowercase()) -> emptyList()
+                args.size == 2 ->
+                    when (args[0].lowercase()) {
+                        "delete", "setspawn", "start", "stop" -> arenas.getArenas().map { it.name }
+                        else -> emptyList()
+                    }
+                args.size == 3 && args[0].equals("create", ignoreCase = true) -> arenas.getTypes()
                 else -> emptyList()
             }
-            args.size == 3 && args[0].equals("create", ignoreCase = true) -> arenas.getTypes()
-            else -> emptyList()
-        }
         val prefix = args.last()
         return options.filter { it.startsWith(prefix, ignoreCase = true) }.sorted()
     }
@@ -364,14 +409,16 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         const val JOIN_PERMISSION = "koth.join"
 
         private val PLAYER_SUBCOMMANDS = listOf("join", "leave")
-        private val SINGLE_PERMISSION_SUBCOMMANDS = mapOf(
-            "start" to "koth.start",
-            "stop" to "koth.stop",
-            "reload" to "koth.reload",
-        )
-        private val ADMIN_SUBCOMMANDS = listOf(
-            "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload"
-        )
+        private val SINGLE_PERMISSION_SUBCOMMANDS =
+            mapOf(
+                "start" to "koth.start",
+                "stop" to "koth.stop",
+                "reload" to "koth.reload",
+            )
+        private val ADMIN_SUBCOMMANDS =
+            listOf(
+                "wand", "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload",
+            )
 
         // Arena names become YAML keys, so no dots or spaces.
         private val NAME_PATTERN = Regex("^[A-Za-z0-9_-]{1,32}$")

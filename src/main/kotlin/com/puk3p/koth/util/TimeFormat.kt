@@ -26,7 +26,11 @@ fun formatDuration(totalSeconds: Long): String {
  * Each unit has plural forms [one, few, many] (Romanian rules: few = 0 or 2..19 mod 100,
  * many = 20+ with "de"). For English, give the same word for few and many.
  */
-fun formatSpoken(totalSeconds: Int, minuteForms: List<String>, secondForms: List<String>): String {
+fun formatSpoken(
+    totalSeconds: Int,
+    minuteForms: List<String>,
+    secondForms: List<String>,
+): String {
     val s = totalSeconds.coerceAtLeast(0)
     val minutes = s / 60
     val seconds = s % 60
@@ -37,19 +41,23 @@ fun formatSpoken(totalSeconds: Int, minuteForms: List<String>, secondForms: List
     }
 }
 
-private fun quantity(n: Int, forms: List<String>): String {
+private fun quantity(
+    n: Int,
+    forms: List<String>,
+): String {
     val one = forms.getOrElse(0) { "" }
     val few = forms.getOrElse(1) { one }
     val many = forms.getOrElse(2) { few }
-    val word = when {
-        n == 1 -> one
-        n == 0 || n % 100 in 1..19 -> few
-        else -> many
-    }
+    val word =
+        when {
+            n == 1 -> one
+            n == 0 || n % 100 in 1..19 -> few
+            else -> many
+        }
     return "$n $word".trimEnd()
 }
 
 /** Seconds left at which countdowns are broadcast, besides every full minute. */
-val COUNTDOWN_ANNOUNCE_AT = setOf(30, 10, 5, 4, 3, 2, 1)
+private val COUNTDOWN_ANNOUNCE_AT = setOf(30, 10, 5, 4, 3, 2, 1)
 
 fun shouldAnnounce(secondsLeft: Int): Boolean = secondsLeft % 60 == 0 || secondsLeft in COUNTDOWN_ANNOUNCE_AT

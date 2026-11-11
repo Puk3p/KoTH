@@ -19,7 +19,6 @@ import java.time.Instant
  * and sent asynchronously; nothing is sent while the plugin is shutting down.
  */
 class DiscordService(private val plugin: KoTHPlugin) {
-
     /** One embed field: name, value, shown inline. */
     data class Field(val name: String, val value: String, val inline: Boolean)
 
@@ -30,22 +29,32 @@ class DiscordService(private val plugin: KoTHPlugin) {
     }
 
     /** Includes the winner's head and Champion / Faction / Capture Time fields. */
-    fun kothCaptured(arena: Arena, playerName: String, faction: String) {
-        val placeholders = listOf(
-            "%arena%" to arena.name, "%type%" to arena.type, "%player%" to playerName, "%faction%" to faction
-        )
+    fun kothCaptured(
+        arena: Arena,
+        playerName: String,
+        faction: String,
+    ) {
+        val placeholders =
+            listOf(
+                "%arena%" to arena.name,
+                "%type%" to arena.type,
+                "%player%" to playerName,
+                "%faction%" to faction,
+            )
         val messages = plugin.configManager.messages
         val captureTime = formatTime(plugin.arenaManager.captureTime(arena))
-        val fields = listOf(
-            Field(plain(messages.raw("discord.field-champion")), "`$playerName`", true),
-            Field(plain(messages.raw("discord.field-faction")), "`$faction`", true),
-            Field(plain(messages.raw("discord.field-capture-time")), "`$captureTime`", false),
-        )
-        val head = if (plugin.configManager.config.getBoolean("discord.player-heads", true)) {
-            "https://mc-heads.net/avatar/$playerName/100"
-        } else {
-            null
-        }
+        val fields =
+            listOf(
+                Field(plain(messages.raw("discord.field-champion")), "`$playerName`", true),
+                Field(plain(messages.raw("discord.field-faction")), "`$faction`", true),
+                Field(plain(messages.raw("discord.field-capture-time")), "`$captureTime`", false),
+            )
+        val head =
+            if (plugin.configManager.config.getBoolean("discord.player-heads", true)) {
+                "https://mc-heads.net/avatar/$playerName/100"
+            } else {
+                null
+            }
         send("captured", placeholders, fields, head)
     }
 
@@ -75,27 +84,32 @@ class DiscordService(private val plugin: KoTHPlugin) {
         }
 
         val messages = plugin.configManager.messages
-        val footer = listOf(config.getString("discord.footer-text", ""), config.getString("discord.server-ip", ""))
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString(" • ")
-        val payload = buildPayload(
-            title = plain(messages.raw("discord.$event-title", *placeholders.toTypedArray())),
-            description = plain(messages.raw("discord.$event-description", *placeholders.toTypedArray())),
-            color = parseColor(config.getString("discord.colors.$event", "")),
-            timestamp = Instant.now(),
-            footer = footer.ifEmpty { null },
-            thumbnailUrl = thumbnailUrl,
-            fields = fields,
-            username = config.getString("discord.username", "KoTH Alerts").trim().ifEmpty { null },
-            avatarUrl = config.getString("discord.avatar-url", DEFAULT_AVATAR).trim().ifEmpty { null },
-        )
+        val footer =
+            listOf(config.getString("discord.footer-text", ""), config.getString("discord.server-ip", ""))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString(" • ")
+        val payload =
+            buildPayload(
+                title = plain(messages.raw("discord.$event-title", *placeholders.toTypedArray())),
+                description = plain(messages.raw("discord.$event-description", *placeholders.toTypedArray())),
+                color = parseColor(config.getString("discord.colors.$event", "")),
+                timestamp = Instant.now(),
+                footer = footer.ifEmpty { null },
+                thumbnailUrl = thumbnailUrl,
+                fields = fields,
+                username = config.getString("discord.username", "KoTH Alerts").trim().ifEmpty { null },
+                avatarUrl = config.getString("discord.avatar-url", DEFAULT_AVATAR).trim().ifEmpty { null },
+            )
         val userAgent = "KoTH-Plugin/${plugin.description.version}"
         val logger = plugin.logger
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-            postJson(url, payload, userAgent)?.let { logger.warning(it) }
-        })
+        Bukkit.getScheduler().runTaskAsynchronously(
+            plugin,
+            Runnable {
+                postJson(url, payload, userAgent)?.let { logger.warning(it) }
+            },
+        )
     }
 
     private fun plain(text: String): String = ChatColor.stripColor(text)
@@ -117,25 +131,31 @@ class DiscordService(private val plugin: KoTHPlugin) {
             username: String? = null,
             avatarUrl: String? = null,
         ): String {
-            val embed = JsonObject().apply {
-                addProperty("title", title)
-                addProperty("description", description)
-                addProperty("color", color)
-                addProperty("timestamp", timestamp.toString())
-                if (footer != null) add("footer", JsonObject().apply { addProperty("text", footer) })
-                if (thumbnailUrl != null) add("thumbnail", JsonObject().apply { addProperty("url", thumbnailUrl) })
-                if (fields.isNotEmpty()) {
-                    add("fields", JsonArray().apply {
-                        for (field in fields) {
-                            add(JsonObject().apply {
-                                addProperty("name", field.name)
-                                addProperty("value", field.value)
-                                addProperty("inline", field.inline)
-                            })
-                        }
-                    })
+            val embed =
+                JsonObject().apply {
+                    addProperty("title", title)
+                    addProperty("description", description)
+                    addProperty("color", color)
+                    addProperty("timestamp", timestamp.toString())
+                    if (footer != null) add("footer", JsonObject().apply { addProperty("text", footer) })
+                    if (thumbnailUrl != null) add("thumbnail", JsonObject().apply { addProperty("url", thumbnailUrl) })
+                    if (fields.isNotEmpty()) {
+                        add(
+                            "fields",
+                            JsonArray().apply {
+                                for (field in fields) {
+                                    add(
+                                        JsonObject().apply {
+                                            addProperty("name", field.name)
+                                            addProperty("value", field.value)
+                                            addProperty("inline", field.inline)
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                    }
                 }
-            }
             return JsonObject().apply {
                 if (username != null) addProperty("username", username)
                 if (avatarUrl != null) addProperty("avatar_url", avatarUrl)
@@ -152,7 +172,11 @@ class DiscordService(private val plugin: KoTHPlugin) {
          * POSTs [payload] to the webhook. Blocking: call off the main thread.
          * @return a warning to log on failure, or null on success. Never contains the URL (it holds the token).
          */
-        fun postJson(url: String, payload: String, userAgent: String): String? {
+        fun postJson(
+            url: String,
+            payload: String,
+            userAgent: String,
+        ): String? {
             return try {
                 val connection = URI(url).toURL().openConnection() as HttpURLConnection
                 try {

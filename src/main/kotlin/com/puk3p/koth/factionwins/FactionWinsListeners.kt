@@ -13,7 +13,6 @@ class CaptureWinListener(
     private val plugin: KoTHPlugin,
     private val service: FactionWinsService,
 ) : Listener {
-
     // MONITOR + ignoreCancelled: only captures that really happen (a cancelled capture is retried later)
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onCapture(event: KothCaptureEvent) {
@@ -36,7 +35,6 @@ class FactionRenameListener(
     private val plugin: KoTHPlugin,
     private val service: FactionWinsService,
 ) : Listener {
-
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onRename(event: FactionRenameEvent) {
         val faction = event.faction ?: return
@@ -46,11 +44,14 @@ class FactionRenameListener(
 
         // The event fires before Factions applies the new tag, and the rename can still fail after it
         // (e.g. the payment). Move the wins on the next tick, only if the faction really has the new tag.
-        plugin.server.scheduler.runTask(plugin, Runnable {
-            if (!newTag.equals(faction.tag?.trim(), ignoreCase = true)) return@Runnable
-            val moved = service.renameFaction(oldTag, newTag) ?: return@Runnable
-            plugin.logger.info("[FKoth] Faction '$oldTag' is now '$newTag'; moved its $moved KoTH win(s).")
-        })
+        plugin.server.scheduler.runTask(
+            plugin,
+            Runnable {
+                if (!newTag.equals(faction.tag?.trim(), ignoreCase = true)) return@Runnable
+                val moved = service.renameFaction(oldTag, newTag) ?: return@Runnable
+                plugin.logger.info("[FKoth] Faction '$oldTag' is now '$newTag'; moved its $moved KoTH win(s).")
+            },
+        )
     }
 }
 
@@ -66,7 +67,6 @@ class FactionDisbandListener(
     private val plugin: KoTHPlugin,
     private val service: FactionWinsService,
 ) : Listener {
-
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onDisband(event: FactionDisbandEvent) {
         if (!plugin.configManager.config.getBoolean("faction-wins.delete-wins-on-faction-disband", true)) return

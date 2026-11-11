@@ -9,7 +9,6 @@ import java.util.logging.Logger
 data class ScheduleEntry(val day: DayOfWeek, val time: LocalTime)
 
 object ScheduleParser {
-
     private val TIME_PATTERN = Regex("^([01]?\\d|2[0-3]):([0-5]\\d)$")
     private val EVERY_DAY_KEYS = setOf("daily", "everyday", "every-day")
 
@@ -22,7 +21,11 @@ object ScheduleParser {
      * ```
      * Day keys are English day names (any case) or `daily`. Invalid days or times are skipped with a warning.
      */
-    fun parse(section: ConfigurationSection?, arenaName: String, logger: Logger): List<ScheduleEntry> {
+    fun parse(
+        section: ConfigurationSection?,
+        arenaName: String,
+        logger: Logger,
+    ): List<ScheduleEntry> {
         if (section == null) return emptyList()
 
         val entries = mutableListOf<ScheduleEntry>()
@@ -58,9 +61,10 @@ object ScheduleParser {
                 val minutes = (value as Number).toInt()
                 if (minutes in 0 until 24 * 60) LocalTime.of(minutes / 60, minutes % 60) else null
             }
-            is String -> TIME_PATTERN.matchEntire(value.trim())?.let {
-                LocalTime.of(it.groupValues[1].toInt(), it.groupValues[2].toInt())
-            }
+            is String ->
+                TIME_PATTERN.matchEntire(value.trim())?.let {
+                    LocalTime.of(it.groupValues[1].toInt(), it.groupValues[2].toInt())
+                }
             else -> null
         }
     }

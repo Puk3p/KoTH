@@ -53,11 +53,12 @@ class TopHologram(
     }
 
     /** For /fkoth debug. */
-    fun status(): String = when {
-        task == null -> "DISABLED"
-        placed -> "ENABLED"
-        else -> "WAITING FOR LOCATION"
-    }
+    fun status(): String =
+        when {
+            task == null -> "DISABLED"
+            placed -> "ENABLED"
+            else -> "WAITING FOR LOCATION"
+        }
 
     private fun location(): Location? {
         return ConfigLocations.read(config.getConfigurationSection("faction-wins.hologram-location"))
@@ -97,14 +98,15 @@ class TopHologram(
         val lines = mutableListOf(color(title))
         for (position in 1..entries) {
             val item = top.getOrNull(position - 1)
-            val line = if (item == null) {
-                emptyFormat.replace("%position%", position.toString())
-            } else {
-                lineFormat
-                    .replace("%position%", position.toString())
-                    .replace("%faction%", item.faction)
-                    .replace("%wins%", item.wins.toString())
-            }
+            val line =
+                if (item == null) {
+                    emptyFormat.replace("%position%", position.toString())
+                } else {
+                    lineFormat
+                        .replace("%position%", position.toString())
+                        .replace("%faction%", item.faction)
+                        .replace("%wins%", item.wins.toString())
+                }
             lines.add(color(line))
         }
         return lines
@@ -125,9 +127,10 @@ class TopHologram(
     }
 
     private fun remove(dhApi: Class<*>) {
-        val method = dhApi.methods.firstOrNull {
-            it.name == "removeHologram" && it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
-        } ?: return
+        val method =
+            dhApi.methods.firstOrNull {
+                it.name == "removeHologram" && it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
+            } ?: return
         runCatching { method.invoke(null, id) }
     }
 
@@ -138,17 +141,19 @@ class TopHologram(
         lines: List<String>,
     ): Any? {
         val creates: List<Method> = dhApi.methods.filter { it.name == "createHologram" }
+
         fun Method.takes(vararg types: Class<*>): Boolean =
             parameterCount == types.size && types.indices.all { types[it].isAssignableFrom(parameterTypes[it]) }
 
         // List::class.java is java.util.List
         val withLines = creates.firstOrNull { it.takes(String::class.java, Location::class.java, List::class.java) }
-        val withPersistent = creates.firstOrNull {
-            it.parameterCount == 4 && it.parameterTypes[0] == String::class.java &&
-                Location::class.java.isAssignableFrom(it.parameterTypes[1]) &&
-                (it.parameterTypes[2] == Boolean::class.javaPrimitiveType || it.parameterTypes[2] == Boolean::class.javaObjectType) &&
-                List::class.java.isAssignableFrom(it.parameterTypes[3])
-        }
+        val withPersistent =
+            creates.firstOrNull {
+                it.parameterCount == 4 && it.parameterTypes[0] == String::class.java &&
+                    Location::class.java.isAssignableFrom(it.parameterTypes[1]) &&
+                    (it.parameterTypes[2] == Boolean::class.javaPrimitiveType || it.parameterTypes[2] == Boolean::class.javaObjectType) &&
+                    List::class.java.isAssignableFrom(it.parameterTypes[3])
+            }
         val simple = creates.firstOrNull { it.takes(String::class.java, Location::class.java) }
 
         return runCatching {
