@@ -26,7 +26,7 @@ admin:
   location-save-failed: "&cCould not save the location to config.yml. Check the console."
   koth-arena-no-location: "&cThe KOTH Arena location is not set or its world isn't loaded. Use &e/koth setarena&c."
   arena-not-found: "&cArena &e%arena% &cdoes not exist."
-  type-not-found: "&cKoTH type &e%type% &cwas not found in config.yml."
+  type-not-found: "&cKoTH type &e%type% &cwas not found in config.yml. Types: &e%types%"
   already-running: "&cArena &e%arena% &cis already running."
   another-running: "&cAnother KoTH (&e%arena%&c) is already running. Only one can run at a time."
   start-cancelled: "&cThe start of &e%arena% &cwas cancelled by another plugin."
@@ -37,24 +37,23 @@ admin:
   list-entry: "&8 - &e%arena% &7type: &b%type% &7state: &f%state% &7enabled: &f%enabled%"
   list-empty: "&7No arenas have been created yet. Use &e/koth create&7."
 
+# /koth help: the header, then only the lines for commands the sender has permission for.
+# The pos1 line also covers pos2, and setarena covers setexit. %types% = the types in config.yml.
+# (The old "help" and "help-player" lists are no longer read; these lines are used instead.)
 help:
-  - "&8&m------&r &bKoTH &8&m------"
-  - "&e/%label% wand &7- Get the selection wand (left/right click two corner blocks)"
-  - "&e/%label% pos1 &7/ &epos2 &7- Select the two corners of the capture zone"
-  - "&e/%label% create <name> <type> &7- Create an arena from your selection"
-  - "&e/%label% setspawn <name> &7- Set the arena spawn to your location"
-  - "&e/%label% delete <name> &7- Delete an arena"
-  - "&e/%label% list &7- List all arenas"
-  - "&e/%label% start <name> &7- Start a KoTH"
-  - "&e/%label% stop [name] &7- Stop the running KoTH"
-  - "&e/%label% setarena &7/ &esetexit &7- Set the KOTH Arena / exit location"
-  - "&e/%label% reload &7- Reload configs and arenas"
-  - "&e/%label% join &7/ &eleave &7- Join or leave the KOTH Arena"
-
-help-player:
-  - "&8&m------&r &bKoTH &8&m------"
-  - "&e/%label% join &7- Join the KOTH Arena before it starts"
-  - "&e/%label% leave &7- Leave the KOTH Arena (you can't come back)"
+  header: "&8&m------&r &bKoTH &8&m------"
+  wand: "&e/%label% wand &7- Get the selection wand (left/right click two corner blocks)"
+  pos1: "&e/%label% pos1 &7/ &epos2 &7- Select the two corners of the capture zone"
+  create: "&e/%label% create <name> <type> &7- Create an arena from your selection &8(types: &7%types%&8)"
+  setspawn: "&e/%label% setspawn <name> &7- Set the arena spawn to your location"
+  delete: "&e/%label% delete <name> &7- Delete an arena"
+  list: "&e/%label% list &7- List all arenas"
+  start: "&e/%label% start <name> &7- Start a KoTH"
+  stop: "&e/%label% stop [name] &7- Stop the running KoTH"
+  setarena: "&e/%label% setarena &7/ &esetexit &7- Set the KOTH Arena / exit location"
+  reload: "&e/%label% reload &7- Reload configs and arenas"
+  join: "&e/%label% join &7- Join the KOTH Arena before it starts"
+  leave: "&e/%label% leave &7- Leave the KOTH Arena (you can't come back)"
 
 events:
   started: "&aThe &e%type% &aevent at &e%arena% &ahas started! Capture it now!"

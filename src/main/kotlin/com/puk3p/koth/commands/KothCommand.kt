@@ -37,16 +37,11 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             return true
         }
 
-        val allowed =
-            when (sub) {
-                in PLAYER_SUBCOMMANDS -> sender.hasPermission(JOIN_PERMISSION)
-                in ADMIN_SUBCOMMANDS -> hasAdminAccess(sender, sub)
-                else -> {
-                    sender.sendMessage(messages.get("general.unknown-subcommand", "%label%" to label))
-                    return true
-                }
-            }
-        if (!allowed) {
+        if (sub !in PLAYER_SUBCOMMANDS && sub !in ADMIN_SUBCOMMANDS) {
+            sender.sendMessage(messages.get("general.unknown-subcommand", "%label%" to label))
+            return true
+        }
+        if (!canUse(sender, sub)) {
             sender.sendMessage(messages.get("general.no-permission"))
             return true
         }
@@ -79,20 +74,34 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         return SINGLE_PERMISSION_SUBCOMMANDS[sub]?.let { sender.hasPermission(it) } ?: false
     }
 
+    private fun canUse(
+        sender: CommandSender,
+        sub: String,
+    ): Boolean {
+        return when (sub) {
+            in PLAYER_SUBCOMMANDS -> sender.hasPermission(JOIN_PERMISSION)
+            in ADMIN_SUBCOMMANDS -> hasAdminAccess(sender, sub)
+            else -> false
+        }
+    }
+
+    /** The header plus one line per command the sender may use, so staff with only koth.start see it. */
     private fun showHelp(
         sender: CommandSender,
         label: String,
     ) {
-        val path =
-            when {
-                sender.hasPermission(ADMIN_PERMISSION) -> "help"
-                sender.hasPermission(JOIN_PERMISSION) -> "help-player"
-                else -> {
-                    sender.sendMessage(messages.get("general.no-permission"))
-                    return
-                }
-            }
-        messages.getList(path, "%label%" to label).forEach { sender.sendMessage(it) }
+        val lines = HELP_LINES.filter { canUse(sender, it) }
+        if (lines.isEmpty()) {
+            sender.sendMessage(messages.get("general.no-permission"))
+            return
+        }
+        val placeholders = arrayOf("%label%" to label, "%types%" to typeList())
+        sender.sendMessage(messages.raw("help.header", *placeholders))
+        lines.forEach { sender.sendMessage(messages.raw("help.$it", *placeholders)) }
+    }
+
+    private fun typeList(): String {
+        return arenas.getTypes().sorted().joinToString(", ").ifEmpty { messages.raw("placeholders.none") }
     }
 
     // ------------------------------------------------------------------ //
@@ -161,7 +170,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         }
         val type = arenas.findType(args[2])
         if (type == null) {
-            sender.sendMessage(messages.get("admin.type-not-found", "%type%" to args[2]))
+            sender.sendMessage(messages.get("admin.type-not-found", "%type%" to args[2], "%types%" to typeList()))
             return
         }
 
@@ -388,8 +397,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                 args.size == 1 ->
                     buildList {
                         add("help")
-                        if (sender.hasPermission(JOIN_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
-                        addAll(ADMIN_SUBCOMMANDS.filter { hasAdminAccess(sender, it) })
+                        addAll((PLAYER_SUBCOMMANDS + ADMIN_SUBCOMMANDS).filter { canUse(sender, it) })
                     }
                 !hasAdminAccess(sender, args[0].lowercase()) -> emptyList()
                 args.size == 2 ->
@@ -418,6 +426,12 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         private val ADMIN_SUBCOMMANDS =
             listOf(
                 "wand", "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload",
+            )
+
+        // messages.yml help.<subcommand>, in display order; pos1 also covers pos2, setarena covers setexit
+        private val HELP_LINES =
+            listOf(
+                "wand", "pos1", "create", "setspawn", "delete", "list", "start", "stop", "setarena", "reload", "join", "leave",
             )
 
         // Arena names become YAML keys, so no dots or spaces.
