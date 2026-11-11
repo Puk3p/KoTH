@@ -33,7 +33,6 @@ import java.util.logging.Level
  * Main thread only, except the read-only state used by PlaceholderAPI.
  */
 class KothArenaManager(private val plugin: KoTHPlugin) {
-
     enum class Phase { IDLE, JOIN, FIGHT, POST_CAPTURE }
 
     enum class JoinResult { JOINED, ALREADY_JOINED, NOT_OPEN, CANNOT_REJOIN, NO_LOCATION, TELEPORT_FAILED }
@@ -175,14 +174,15 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
                     broadcast(
                         "join-countdown",
                         "%time%" to spoken(secondsLeft),
-                        "%count%" to participants.size.toString()
+                        "%count%" to participants.size.toString(),
                     )
                 }
             }
-            Phase.FIGHT -> if (participants.isEmpty()) {
-                broadcast("no-players-left")
-                plugin.arenaManager.stopArena(arena, broadcast = false) // -> onArenaEnded -> finish
-            }
+            Phase.FIGHT ->
+                if (participants.isEmpty()) {
+                    broadcast("no-players-left")
+                    plugin.arenaManager.stopArena(arena, broadcast = false) // -> onArenaEnded -> finish
+                }
             Phase.POST_CAPTURE -> {
                 secondsLeft--
                 if (secondsLeft <= 0) {
@@ -226,7 +226,10 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
     }
 
     /** Called by the capture loop after a capture, before the arena goes idle. */
-    fun onCaptured(arena: Arena, winnerName: String) {
+    fun onCaptured(
+        arena: Arena,
+        winnerName: String,
+    ) {
         if (arena != this.arena || phase != Phase.FIGHT) return
         phase = Phase.POST_CAPTURE
         secondsLeft = postCaptureTime
@@ -372,7 +375,12 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
      * A participant was teleported by something else (another plugin, an admin): they left the arena.
      * Ender pearls and short hops (anti-cheat setbacks) don't count.
      */
-    fun onTeleport(player: Player, from: Location, to: Location, cause: TeleportCause) {
+    fun onTeleport(
+        player: Player,
+        from: Location,
+        to: Location,
+        cause: TeleportCause,
+    ) {
         if (teleporting || cause == TeleportCause.ENDER_PEARL) return
         val uuid = player.uniqueId
         if (uuid !in participants) return
@@ -419,7 +427,7 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
                 val yaml = YamlConfiguration()
                 yaml.options().header(
                     "Players who were inside the KOTH Arena when they logged out or the server stopped.\n" +
-                        "They are sent to the exit location on their next login. Managed by the plugin."
+                        "They are sent to the exit location on their next login. Managed by the plugin.",
                 )
                 yaml.set("pending-exit", pending.sorted())
                 yaml.save(pendingExitFile)
@@ -429,7 +437,10 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
         }
     }
 
-    private fun teleport(player: Player, location: Location): Boolean {
+    private fun teleport(
+        player: Player,
+        location: Location,
+    ): Boolean {
         teleporting = true
         try {
             return player.teleport(location)
@@ -443,17 +454,26 @@ class KothArenaManager(private val plugin: KoTHPlugin) {
     // ------------------------------------------------------------------ //
 
     /** `koth-arena.<path>` from messages.yml with the KOTH Arena prefix; %arena% is filled in. */
-    fun prefixed(path: String, vararg placeholders: Pair<String, String>): String {
+    fun prefixed(
+        path: String,
+        vararg placeholders: Pair<String, String>,
+    ): String {
         val messages = plugin.configManager.messages
         return messages.raw("koth-arena.prefix") +
             messages.raw("koth-arena.$path", "%arena%" to (arena?.name ?: "?"), *placeholders)
     }
 
-    private fun broadcast(path: String, vararg placeholders: Pair<String, String>) {
+    private fun broadcast(
+        path: String,
+        vararg placeholders: Pair<String, String>,
+    ) {
         Bukkit.broadcastMessage(prefixed(path, *placeholders))
     }
 
-    private fun tellParticipants(path: String, vararg placeholders: Pair<String, String>) {
+    private fun tellParticipants(
+        path: String,
+        vararg placeholders: Pair<String, String>,
+    ) {
         val message = prefixed(path, *placeholders)
         participants.mapNotNull { Bukkit.getPlayer(it) }.forEach { it.sendMessage(message) }
     }

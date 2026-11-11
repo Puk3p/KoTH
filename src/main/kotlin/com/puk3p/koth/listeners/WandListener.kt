@@ -16,16 +16,16 @@ import org.bukkit.event.player.PlayerQuitEvent
  * broken nor used. Only for koth.admin; for anyone else the wand is just a golden axe.
  */
 class WandListener(private val plugin: KoTHPlugin) : Listener {
-
     // Not ignoreCancelled: KoTH zones often sit in regions where another plugin cancels interaction,
     // and selecting must still work there.
     @EventHandler(priority = EventPriority.LOW)
     fun onClick(event: PlayerInteractEvent) {
-        val first = when (event.action) {
-            Action.LEFT_CLICK_BLOCK -> true
-            Action.RIGHT_CLICK_BLOCK -> false
-            else -> return
-        }
+        val first =
+            when (event.action) {
+                Action.LEFT_CLICK_BLOCK -> true
+                Action.RIGHT_CLICK_BLOCK -> false
+                else -> return
+            }
         val player = event.player
         if (!plugin.selections.isWand(event.item) || !player.hasPermission(KothCommand.ADMIN_PERMISSION)) return
         val block = event.clickedBlock ?: return

@@ -36,7 +36,13 @@ class FactionWinsRepository(
     private val winsByFaction = ConcurrentHashMap<String, Int>()
 
     init {
-        file.parentFile?.mkdirs()
+        file.parentFile?.let { folder ->
+            try {
+                Files.createDirectories(folder.toPath())
+            } catch (e: IOException) {
+                logger.log(Level.SEVERE, "Could not create ${folder.path}; faction wins won't be saved", e)
+            }
+        }
         if (file.exists()) {
             load()
         }
@@ -108,10 +114,11 @@ class FactionWinsRepository(
     fun top(limit: Int): List<FactionWins> {
         // Placeholders ask for this many times a second (every top_<n> line, every rank); the
         // ranking only changes when wins change, so sort once per change.
-        val sorted = sortedCache ?: winsByFaction.entries
-            .map { FactionWins(it.key, it.value) }
-            .sortedWith(compareByDescending<FactionWins> { it.wins }.thenBy { it.faction.lowercase(Locale.ROOT) })
-            .also { sortedCache = it }
+        val sorted =
+            sortedCache ?: winsByFaction.entries
+                .map { FactionWins(it.key, it.value) }
+                .sortedWith(compareByDescending<FactionWins> { it.wins }.thenBy { it.faction.lowercase(Locale.ROOT) })
+                .also { sortedCache = it }
         return if (limit >= sorted.size) sorted else sorted.subList(0, limit.coerceAtLeast(0))
     }
 

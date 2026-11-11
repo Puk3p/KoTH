@@ -14,7 +14,6 @@ import java.util.logging.Level
  * FKothApi service other plugins (DinoFtop) read wins from.
  */
 class FactionWinsModule(private val plugin: KoTHPlugin) {
-
     /** Null when the module is off; see [disabledReason]. */
     var service: FactionWinsService? = null
         private set
@@ -43,7 +42,7 @@ class FactionWinsModule(private val plugin: KoTHPlugin) {
             plugin.logger.severe(
                 "$LEGACY_PLUGIN is installed, but faction KoTH wins are now built into KoTH. " +
                     "Remove $LEGACY_PLUGIN.jar and restart; its wins are imported automatically. " +
-                    "Faction wins stay disabled until then."
+                    "Faction wins stay disabled until then.",
             )
             return
         }
@@ -57,20 +56,24 @@ class FactionWinsModule(private val plugin: KoTHPlugin) {
         val pluginManager = plugin.server.pluginManager
         pluginManager.registerEvents(CaptureWinListener(plugin, service), plugin)
         if (plugin.factionsEnabled) {
-            disbandHookEnabled = try {
-                pluginManager.registerEvents(FactionDisbandListener(plugin, service), plugin)
-                true
-            } catch (e: LinkageError) {
-                plugin.logger.warning("[FKoth] This Factions version has no FactionDisbandEvent; disband cleanup disabled.")
-                false
-            }
-            renameHookEnabled = try {
-                pluginManager.registerEvents(FactionRenameListener(plugin, service), plugin)
-                true
-            } catch (e: LinkageError) {
-                plugin.logger.warning("[FKoth] This Factions version has no FactionRenameEvent; a renamed faction's wins stay under its old name.")
-                false
-            }
+            disbandHookEnabled =
+                try {
+                    pluginManager.registerEvents(FactionDisbandListener(plugin, service), plugin)
+                    true
+                } catch (e: LinkageError) {
+                    plugin.logger.warning("[FKoth] This Factions version has no FactionDisbandEvent; disband cleanup disabled.")
+                    false
+                }
+            renameHookEnabled =
+                try {
+                    pluginManager.registerEvents(FactionRenameListener(plugin, service), plugin)
+                    true
+                } catch (e: LinkageError) {
+                    plugin.logger.warning(
+                        "[FKoth] This Factions version has no FactionRenameEvent; a renamed faction's wins stay under its old name.",
+                    )
+                    false
+                }
         }
 
         plugin.server.servicesManager.register(FKothApi::class.java, FKothApiImpl(service), plugin, ServicePriority.Normal)
@@ -129,7 +132,7 @@ class FactionWinsModule(private val plugin: KoTHPlugin) {
         val legacyFile = File(legacyFolder, "faction-wins.yml")
         if (!legacyFile.isFile) return
         try {
-            target.parentFile?.mkdirs()
+            target.parentFile?.let { Files.createDirectories(it.toPath()) }
             Files.copy(legacyFile.toPath(), target.toPath())
             plugin.logger.info("[FKoth] Imported faction wins from plugins/$LEGACY_PLUGIN/faction-wins.yml.")
         } catch (e: IOException) {

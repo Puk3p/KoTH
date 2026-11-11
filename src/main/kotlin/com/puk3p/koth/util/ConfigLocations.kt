@@ -7,15 +7,17 @@ import java.util.Locale
 
 /** Locations stored in config.yml as world / x / y / z / yaw / pitch. */
 object ConfigLocations {
-
     /** @return null if the section is missing or its world isn't loaded. */
     fun read(section: ConfigurationSection?): Location? {
         if (section == null) return null
         val world = section.getString("world")?.let { Bukkit.getWorld(it) } ?: return null
         return Location(
             world,
-            section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
-            section.getDouble("yaw").toFloat(), section.getDouble("pitch").toFloat()
+            section.getDouble("x"),
+            section.getDouble("y"),
+            section.getDouble("z"),
+            section.getDouble("yaw").toFloat(),
+            section.getDouble("pitch").toFloat(),
         )
     }
 
@@ -23,14 +25,21 @@ object ConfigLocations {
         return toYamlLines(location.world.name, location.x, location.y, location.z, location.yaw, location.pitch)
     }
 
-    fun toYamlLines(world: String, x: Double, y: Double, z: Double, yaw: Float, pitch: Float): List<String> {
+    fun toYamlLines(
+        world: String,
+        x: Double,
+        y: Double,
+        z: Double,
+        yaw: Float,
+        pitch: Float,
+    ): List<String> {
         return listOf(
             "world: \"${world.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
             "x: ${number(x)}",
             "y: ${number(y)}",
             "z: ${number(z)}",
             "yaw: ${number(yaw.toDouble())}",
-            "pitch: ${number(pitch.toDouble())}"
+            "pitch: ${number(pitch.toDouble())}",
         )
     }
 
@@ -43,7 +52,12 @@ object ConfigLocations {
      * The child block is the `child:` line plus the more-indented lines right after it
      * (a blank line ends it). An inline value (`child: {...}`) is replaced the same way.
      */
-    fun setBlock(text: String, parent: String, child: String, childLines: List<String>): String {
+    fun setBlock(
+        text: String,
+        parent: String,
+        child: String,
+        childLines: List<String>,
+    ): String {
         val newline = if (text.contains("\r\n")) "\r\n" else "\n"
         val lines = text.split("\n").map { it.removeSuffix("\r") }.toMutableList()
 
@@ -59,11 +73,12 @@ object ConfigLocations {
         var parentEnd = parentIndex + 1
         while (parentEnd < lines.size && !isTopLevelKey(lines[parentEnd])) parentEnd++
 
-        val childIndent = (parentIndex + 1 until parentEnd)
-            .map { lines[it] }
-            .firstOrNull { it.isNotBlank() && !it.trimStart().startsWith("#") }
-            ?.let { indentOf(it) }
-            ?: 2
+        val childIndent =
+            (parentIndex + 1 until parentEnd)
+                .map { lines[it] }
+                .firstOrNull { it.isNotBlank() && !it.trimStart().startsWith("#") }
+                ?.let { indentOf(it) }
+                ?: 2
         val pad = " ".repeat(childIndent)
         val block = listOf("$pad$child:") + childLines.map { "$pad  $it" }
 
@@ -81,7 +96,11 @@ object ConfigLocations {
         return lines.joinToString(newline)
     }
 
-    private fun isKeyLine(line: String, key: String, indent: Int): Boolean {
+    private fun isKeyLine(
+        line: String,
+        key: String,
+        indent: Int,
+    ): Boolean {
         return indentOf(line) == indent && line.trimStart().startsWith("$key:")
     }
 

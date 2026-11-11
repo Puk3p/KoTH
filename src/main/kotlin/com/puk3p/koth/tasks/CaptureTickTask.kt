@@ -21,7 +21,6 @@ import org.bukkit.scheduler.BukkitRunnable
  * Runs once per second on the main thread and advances the active KoTH.
  */
 class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
-
     override fun run() {
         // getActiveArena() only returns RUNNING or CONTESTED arenas
         val activeArena = plugin.arenaManager.getActiveArena() ?: return
@@ -54,10 +53,11 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         val factionCapture = config.getBoolean("settings.faction-capture", true)
         val ignoreCreative = config.getBoolean("settings.ignore-creative", true)
         val inside = synchronized(playersInside) { playersInside.toList() }
-        val teams = inside
-            .mapNotNull { Bukkit.getPlayer(it) }
-            .filter { countsInZone(it, ignoreCreative) }
-            .groupBy { teamOf(it, factionCapture) }
+        val teams =
+            inside
+                .mapNotNull { Bukkit.getPlayer(it) }
+                .filter { countsInZone(it, ignoreCreative) }
+                .groupBy { teamOf(it, factionCapture) }
 
         when (teams.size) {
             0 -> handleEmptyZone(activeArena)
@@ -76,7 +76,10 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
      * they can't be killed, so they'd win or block every KoTH. Checked every tick because these
      * can change while the player stands still.
      */
-    private fun countsInZone(player: Player, ignoreCreative: Boolean): Boolean {
+    private fun countsInZone(
+        player: Player,
+        ignoreCreative: Boolean,
+    ): Boolean {
         if (player.isDead) return false
         when (player.gameMode) {
             GameMode.SPECTATOR -> return false
@@ -90,7 +93,10 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
      * Team key used to decide who contests whom: the player's faction when faction capture is on
      * and they have one, otherwise the player alone.
      */
-    private fun teamOf(player: Player, factionCapture: Boolean): String {
+    private fun teamOf(
+        player: Player,
+        factionCapture: Boolean,
+    ): String {
         if (factionCapture) {
             val factionId = plugin.factionsHook?.getFactionId(player)
             if (!factionId.isNullOrEmpty()) return "f:$factionId"
@@ -104,7 +110,11 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** Exactly one team is in the zone. [members] is non-empty, in order of entry. */
-    private fun handleCapturing(arena: Arena, team: String, members: List<Player>) {
+    private fun handleCapturing(
+        arena: Arena,
+        team: String,
+        members: List<Player>,
+    ) {
         // A single team in the zone also ends a contest
         arena.state = ArenaState.RUNNING
 
@@ -117,8 +127,9 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         }
 
         // The credited player left but teammates still hold the zone: hand over, no knock-off
-        val capper = members.firstOrNull { it.uniqueId == arena.capturingPlayer }
-            ?: members.first().also { credit(arena, it) }
+        val capper =
+            members.firstOrNull { it.uniqueId == arena.capturingPlayer }
+                ?: members.first().also { credit(arena, it) }
 
         if (isNewTeam) {
             broadcastCapturing(arena, capper)
@@ -141,7 +152,10 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         }
     }
 
-    private fun tryCapture(arena: Arena, player: Player) {
+    private fun tryCapture(
+        arena: Arena,
+        player: Player,
+    ) {
         val event = KothCaptureEvent(arena, player)
         Bukkit.getPluginManager().callEvent(event)
         // Cancelled: the KoTH keeps running and the capture is retried on the next tick.
@@ -152,23 +166,24 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         val faction = factionOf(player)
         val kothArena = plugin.kothArena
         val isArenaEvent = kothArena.isEventArena(arena)
-        val msg = if (isArenaEvent) {
-            kothArena.prefixed("captured", "%player%" to player.name, "%faction%" to faction)
-        } else {
-            plugin.configManager.messages.get(
-                "events.captured",
-                "%player%" to player.name,
-                "%faction%" to faction,
-                "%arena%" to arena.name
-            )
-        }
+        val msg =
+            if (isArenaEvent) {
+                kothArena.prefixed("captured", "%player%" to player.name, "%faction%" to faction)
+            } else {
+                plugin.configManager.messages.get(
+                    "events.captured",
+                    "%player%" to player.name,
+                    "%faction%" to faction,
+                    "%arena%" to arena.name,
+                )
+            }
         Bukkit.broadcastMessage(msg)
         plugin.arenaManager.showTitle(
             arena,
             "title-on-capture",
             "%player%" to player.name,
             "%faction%" to faction,
-            "%arena%" to arena.name
+            "%arena%" to arena.name,
         )
         if (plugin.configManager.config.getBoolean("types.${arena.type}.visuals.firework-on-capture", true)) {
             spawnVictoryFirework(player)
@@ -188,7 +203,10 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** Players from more than one team are in the zone. */
-    private fun handleContested(arena: Arena, playersInZone: List<Player>) {
+    private fun handleContested(
+        arena: Arena,
+        playersInZone: List<Player>,
+    ) {
         if (arena.state != ArenaState.CONTESTED) {
             arena.state = ArenaState.CONTESTED
             val msg = plugin.configManager.messages.get("events.contested", "%arena%" to arena.name)
@@ -200,13 +218,19 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** `types.<type>.visuals.action-bar.<key>` to [players], if the action bar is enabled. */
-    private fun actionBar(arena: Arena, players: List<Player>, key: String, default: String) {
+    private fun actionBar(
+        arena: Arena,
+        players: List<Player>,
+        key: String,
+        default: String,
+    ) {
         val config = plugin.configManager.config
         val path = "types.${arena.type}.visuals.action-bar"
         if (!config.getBoolean("$path.enabled", true)) return
-        val text = ChatColor.translateAlternateColorCodes('&', config.getString("$path.$key", default))
-            .replace("%arena%", arena.name)
-            .replace("%time%", formatTime(arena.remainingSeconds))
+        val text =
+            ChatColor.translateAlternateColorCodes('&', config.getString("$path.$key", default))
+                .replace("%arena%", arena.name)
+                .replace("%time%", formatTime(arena.remainingSeconds))
         for (player in players) {
             ClientDisplay.actionBar(player, text, plugin.logger)
         }
@@ -222,7 +246,7 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 .with(FireworkEffect.Type.BALL_LARGE)
                 .trail(true)
                 .flicker(true)
-                .build()
+                .build(),
         )
         meta.power = 1
         firework.fireworkMeta = meta
@@ -232,7 +256,10 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
      * The team holding the zone (if any) lost it: announce it and apply `knock-behavior`.
      * PAUSE keeps the remaining time for whoever caps next; RESET (default) restores the full time.
      */
-    private fun credit(arena: Arena, player: Player) {
+    private fun credit(
+        arena: Arena,
+        player: Player,
+    ) {
         arena.capturingPlayer = player.uniqueId
         arena.capturingPlayerName = player.name
     }
@@ -244,11 +271,12 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         arena.capturingPlayer = null
         arena.capturingPlayerName = null
 
-        val msg = plugin.configManager.messages.get(
-            "events.lost-control",
-            "%player%" to playerName,
-            "%arena%" to arena.name
-        )
+        val msg =
+            plugin.configManager.messages.get(
+                "events.lost-control",
+                "%player%" to playerName,
+                "%arena%" to arena.name,
+            )
         Bukkit.broadcastMessage(msg)
 
         val behavior = plugin.configManager.config.getString("types.${arena.type}.knock-behavior", "RESET")
@@ -257,14 +285,18 @@ class CaptureTickTask(private val plugin: KoTHPlugin) : BukkitRunnable() {
         }
     }
 
-    private fun broadcastCapturing(arena: Arena, player: Player) {
-        val msg = plugin.configManager.messages.get(
-            "events.capturing",
-            "%player%" to player.name,
-            "%faction%" to factionOf(player),
-            "%arena%" to arena.name,
-            "%time%" to formatTime(arena.remainingSeconds)
-        )
+    private fun broadcastCapturing(
+        arena: Arena,
+        player: Player,
+    ) {
+        val msg =
+            plugin.configManager.messages.get(
+                "events.capturing",
+                "%player%" to player.name,
+                "%faction%" to factionOf(player),
+                "%arena%" to arena.name,
+                "%time%" to formatTime(arena.remainingSeconds),
+            )
         Bukkit.broadcastMessage(msg)
     }
 

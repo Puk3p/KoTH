@@ -14,7 +14,6 @@ import kotlin.math.abs
  * by /koth create.
  */
 class SelectionManager(private val plugin: KoTHPlugin) {
-
     class Selection {
         var pos1: Location? = null
         var pos2: Location? = null
@@ -35,7 +34,11 @@ class SelectionManager(private val plugin: KoTHPlugin) {
     }
 
     /** Stores a corner and tells the player, with the selection's size once both corners are set. */
-    fun setCorner(player: Player, first: Boolean, location: Location) {
+    fun setCorner(
+        player: Player,
+        first: Boolean,
+        location: Location,
+    ) {
         val selection = selections.getOrPut(player.uniqueId) { Selection() }
         if (first) selection.pos1 = location else selection.pos2 = location
         selection.changedAt = System.currentTimeMillis()
@@ -46,8 +49,8 @@ class SelectionManager(private val plugin: KoTHPlugin) {
                 if (first) "admin.pos1-set" else "admin.pos2-set",
                 "%x%" to location.blockX.toString(),
                 "%y%" to location.blockY.toString(),
-                "%z%" to location.blockZ.toString()
-            )
+                "%z%" to location.blockZ.toString(),
+            ),
         )
 
         val pos1 = selection.pos1 ?: return
@@ -62,8 +65,8 @@ class SelectionManager(private val plugin: KoTHPlugin) {
                 "%x%" to sizeX.toString(),
                 "%y%" to sizeY.toString(),
                 "%z%" to sizeZ.toString(),
-                "%blocks%" to (sizeX.toLong() * sizeY * sizeZ).toString()
-            )
+                "%blocks%" to (sizeX.toLong() * sizeY * sizeZ).toString(),
+            ),
         )
     }
 

@@ -9,19 +9,18 @@ import com.puk3p.koth.factionwins.FactionWinsModule
 import com.puk3p.koth.factionwins.FkothCommand
 import com.puk3p.koth.hooks.FactionsHook
 import com.puk3p.koth.hooks.PlaceholderAPIHook
-import com.puk3p.koth.services.DiscordService
+import com.puk3p.koth.kotharena.KothArenaManager
 import com.puk3p.koth.listeners.PlayerListener
 import com.puk3p.koth.listeners.ProtectionListener
 import com.puk3p.koth.listeners.WandListener
 import com.puk3p.koth.scheduler.KothScheduler
+import com.puk3p.koth.services.DiscordService
 import com.puk3p.koth.services.RewardService
 import com.puk3p.koth.tasks.CaptureTickTask
-import com.puk3p.koth.kotharena.KothArenaManager
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.logging.Level
 
 class KoTHPlugin : JavaPlugin() {
-
     lateinit var configManager: ConfigManager
         private set
     lateinit var arenaManager: ArenaManager

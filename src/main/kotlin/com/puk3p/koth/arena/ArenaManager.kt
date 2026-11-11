@@ -14,7 +14,6 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class ArenaManager(private val plugin: KoTHPlugin) {
-
     // Thread-safe map mapped by lowercase arena name
     private val arenas = ConcurrentHashMap<String, Arena>()
 
@@ -70,7 +69,10 @@ class ArenaManager(private val plugin: KoTHPlugin) {
      * Whether a player may count towards capturing this arena.
      * In a KOTH Arena event, only players who joined (and are still in) may enter the zone.
      */
-    fun canEnter(arena: Arena, uuid: UUID): Boolean {
+    fun canEnter(
+        arena: Arena,
+        uuid: UUID,
+    ): Boolean {
         val kothArena = plugin.kothArena
         if (!kothArena.isEventArena(arena)) return true
         return kothArena.isFighting && kothArena.isParticipant(uuid)
@@ -101,7 +103,10 @@ class ArenaManager(private val plugin: KoTHPlugin) {
         plugin.logger.info("Loaded ${arenas.size} arena(s) with $slots scheduled start(s) per week.")
     }
 
-    private fun parseArena(name: String, section: ConfigurationSection): Arena? {
+    private fun parseArena(
+        name: String,
+        section: ConfigurationSection,
+    ): Arena? {
         val type = section.getString("type")?.let { findType(it) }
         if (type == null) {
             plugin.logger.warning("Skipping arena '$name': type '${section.getString("type")}' is not defined in config.yml.")
@@ -115,31 +120,40 @@ class ArenaManager(private val plugin: KoTHPlugin) {
             return null
         }
 
-        val spawn = section.getConfigurationSection("spawn")?.let { sp ->
-            val world = Bukkit.getWorld(worldName)
-            if (world == null) {
-                plugin.logger.warning("Arena '$name': world '$worldName' is not loaded, ignoring its spawn point.")
-                null
-            } else {
-                Location(
-                    world,
-                    sp.getDouble("x"), sp.getDouble("y"), sp.getDouble("z"),
-                    sp.getDouble("yaw").toFloat(), sp.getDouble("pitch").toFloat()
-                )
+        val spawn =
+            section.getConfigurationSection("spawn")?.let { sp ->
+                val world = Bukkit.getWorld(worldName)
+                if (world == null) {
+                    plugin.logger.warning("Arena '$name': world '$worldName' is not loaded, ignoring its spawn point.")
+                    null
+                } else {
+                    Location(
+                        world,
+                        sp.getDouble("x"),
+                        sp.getDouble("y"),
+                        sp.getDouble("z"),
+                        sp.getDouble("yaw").toFloat(),
+                        sp.getDouble("pitch").toFloat(),
+                    )
+                }
             }
-        }
 
         return Arena(
             name = name,
             type = type,
-            region = Region.of(
-                worldName,
-                region.getInt("min-x"), region.getInt("min-y"), region.getInt("min-z"),
-                region.getInt("max-x"), region.getInt("max-y"), region.getInt("max-z")
-            ),
+            region =
+                Region.of(
+                    worldName,
+                    region.getInt("min-x"),
+                    region.getInt("min-y"),
+                    region.getInt("min-z"),
+                    region.getInt("max-x"),
+                    region.getInt("max-y"),
+                    region.getInt("max-z"),
+                ),
             spawnPoint = spawn,
             isEnabled = section.getBoolean("enabled", true),
-            schedule = ScheduleParser.parse(section.getConfigurationSection("schedule"), name, plugin.logger)
+            schedule = ScheduleParser.parse(section.getConfigurationSection("schedule"), name, plugin.logger),
         )
     }
 
@@ -231,8 +245,8 @@ class ArenaManager(private val plugin: KoTHPlugin) {
             plugin.configManager.messages.get(
                 "events.started",
                 "%type%" to arena.type,
-                "%arena%" to arena.name
-            )
+                "%arena%" to arena.name,
+            ),
         )
         playSound(arena, "start")
         showTitle(arena, "title-on-start", "%arena%" to arena.name, "%type%" to arena.type)
@@ -244,7 +258,10 @@ class ArenaManager(private val plugin: KoTHPlugin) {
      * Force-stops the arena, announcing it unless [broadcast] is false.
      * @return false if the arena was already idle.
      */
-    fun stopArena(arena: Arena, broadcast: Boolean = true): Boolean {
+    fun stopArena(
+        arena: Arena,
+        broadcast: Boolean = true,
+    ): Boolean {
         if (arena.state == ArenaState.WAITING) return false
         resetToIdle(arena)
         if (broadcast) {
@@ -281,7 +298,11 @@ class ArenaManager(private val plugin: KoTHPlugin) {
      * The entry is either a sound name or a section `{ sound, volume, pitch, enabled }`.
      * An invalid sound name is logged once per config path, not on every call.
      */
-    fun playSound(arena: Arena, key: String, players: Collection<Player> = Bukkit.getOnlinePlayers()) {
+    fun playSound(
+        arena: Arena,
+        key: String,
+        players: Collection<Player> = Bukkit.getOnlinePlayers(),
+    ) {
         val config = plugin.configManager.config
         val base = "types.${arena.type}.sounds"
         // Older configs name the tick sound "capture-tick"
@@ -299,14 +320,15 @@ class ArenaManager(private val plugin: KoTHPlugin) {
             name = config.getString(path) ?: return
         }
 
-        val sound = try {
-            Sound.valueOf(name.uppercase())
-        } catch (e: IllegalArgumentException) {
-            if (invalidSoundPaths.add(path)) {
-                plugin.logger.warning("Invalid sound '$name' at $path (use 1.8 Sound names).")
+        val sound =
+            try {
+                Sound.valueOf(name.uppercase())
+            } catch (e: IllegalArgumentException) {
+                if (invalidSoundPaths.add(path)) {
+                    plugin.logger.warning("Invalid sound '$name' at $path (use 1.8 Sound names).")
+                }
+                return
             }
-            return
-        }
         for (player in players) {
             player.playSound(player.location, sound, volume, pitch)
         }
@@ -318,7 +340,11 @@ class ArenaManager(private val plugin: KoTHPlugin) {
      * Shows `types.<type>.visuals.<key>` (`{ enabled, title, subtitle, fade-in, stay, fade-out }`,
      * times in ticks) to everyone online, if configured.
      */
-    fun showTitle(arena: Arena, key: String, vararg placeholders: Pair<String, String>) {
+    fun showTitle(
+        arena: Arena,
+        key: String,
+        vararg placeholders: Pair<String, String>,
+    ) {
         val config = plugin.configManager.config
         val path = "types.${arena.type}.visuals.$key"
         if (!config.isConfigurationSection(path) || !config.getBoolean("$path.enabled", true)) return

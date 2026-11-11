@@ -14,7 +14,6 @@ import java.util.UUID
  * below cannot be resolved otherwise.
  */
 class FactionsHook {
-
     fun getFaction(player: Player): String {
         return try {
             val fPlayer = FPlayers.getInstance().getByPlayer(player)
@@ -48,9 +47,10 @@ class FactionsHook {
     fun getFactionTag(uuid: UUID): String? {
         return try {
             val fPlayers = FPlayers.getInstance()
-            val fPlayer = Bukkit.getPlayer(uuid)?.let { fPlayers.getByPlayer(it) }
-                ?: fPlayers.getById(uuid.toString())
-                ?: return null
+            val fPlayer =
+                Bukkit.getPlayer(uuid)?.let { fPlayers.getByPlayer(it) }
+                    ?: fPlayers.getById(uuid.toString())
+                    ?: return null
             tagOf(fPlayer)
         } catch (e: Exception) {
             null

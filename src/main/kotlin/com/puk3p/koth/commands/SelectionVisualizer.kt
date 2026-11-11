@@ -19,7 +19,6 @@ import kotlin.math.min
  * and /koth pos2 are visible too). A selection disappears with /koth create.
  */
 class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
-
     private class Color(val r: Float, val g: Float, val b: Float)
 
     private var failed = false
@@ -46,7 +45,10 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
         }
     }
 
-    private fun draw(player: Player, selection: SelectionManager.Selection) {
+    private fun draw(
+        player: Player,
+        selection: SelectionManager.Selection,
+    ) {
         val pos1 = selection.pos1
         val pos2 = selection.pos2
         val world = player.world
@@ -60,7 +62,12 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** A single corner: a column rising from the selected block. */
-    private fun column(player: Player, world: World, corner: Location, color: Color) {
+    private fun column(
+        player: Player,
+        world: World,
+        corner: Location,
+        color: Color,
+    ) {
         val x = corner.blockX + 0.5
         val z = corner.blockZ + 0.5
         val bottom = corner.blockY.toDouble()
@@ -68,7 +75,12 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
     }
 
     /** The selection's outline, on the outer faces of its blocks. */
-    private fun drawBox(player: Player, world: World, pos1: Location, pos2: Location) {
+    private fun drawBox(
+        player: Player,
+        world: World,
+        pos1: Location,
+        pos2: Location,
+    ) {
         val minX = min(pos1.blockX, pos2.blockX).toDouble()
         val minY = min(pos1.blockY, pos2.blockY).toDouble()
         val minZ = min(pos1.blockZ, pos2.blockZ).toDouble()
@@ -82,6 +94,7 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
 
         // The box corner that each selected block sits at
         fun cornerX(pos: Location) = if (pos.blockX.toDouble() == minX) minX else maxX
+
         fun cornerZ(pos: Location) = if (pos.blockZ.toDouble() == minZ) minZ else maxZ
         val corner1 = cornerX(pos1) to cornerZ(pos1)
         val corner2 = cornerX(pos2) to cornerZ(pos2)
@@ -89,11 +102,12 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
         // Vertical edges: bottom to top
         for (x in listOf(minX, maxX)) {
             for (z in listOf(minZ, maxZ)) {
-                val color = when (x to z) {
-                    corner1 -> GREEN
-                    corner2 -> RED
-                    else -> YELLOW
-                }
+                val color =
+                    when (x to z) {
+                        corner1 -> GREEN
+                        corner2 -> RED
+                        else -> YELLOW
+                    }
                 line(player, world, x, minY, z, x, maxY, z, step, color)
             }
         }
@@ -109,8 +123,12 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
     private fun line(
         player: Player,
         world: World,
-        x1: Double, y1: Double, z1: Double,
-        x2: Double, y2: Double, z2: Double,
+        x1: Double,
+        y1: Double,
+        z1: Double,
+        x2: Double,
+        y2: Double,
+        z2: Double,
         step: Double,
         color: Color,
     ) {
@@ -133,7 +151,11 @@ class SelectionVisualizer(private val plugin: KoTHPlugin) : BukkitRunnable() {
      * Colored redstone dust for one player: with a particle count of 0 the client reads the offsets
      * as the color (a red of exactly 0 would be turned into 1, hence the tiny values).
      */
-    private fun dust(player: Player, location: Location, color: Color) {
+    private fun dust(
+        player: Player,
+        location: Location,
+        color: Color,
+    ) {
         player.spigot().playEffect(location, Effect.COLOURED_DUST, 0, 0, color.r, color.g, color.b, 1f, 0, VIEW_RADIUS)
     }
 

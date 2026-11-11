@@ -18,8 +18,12 @@ class FkothCommand(
     private val plugin: KoTHPlugin,
     private val module: FactionWinsModule,
 ) : CommandExecutor, TabCompleter {
-
-    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
+    override fun onCommand(
+        sender: CommandSender,
+        command: Command,
+        label: String,
+        args: Array<String>,
+    ): Boolean {
         val service = module.service
         if (service == null) {
             sender.sendMessage(message("disabled", "%reason%" to (module.disabledReason ?: "?")))
@@ -27,14 +31,15 @@ class FkothCommand(
         }
 
         val sub = args.firstOrNull()?.lowercase()
-        val permission = when (sub) {
-            in ADMIN_SUBCOMMANDS -> ADMIN_PERMISSION
-            in PLAYER_SUBCOMMANDS -> PLAYER_PERMISSION
-            else -> {
-                sender.sendMessage(message("usage-main", "%label%" to label))
-                return true
+        val permission =
+            when (sub) {
+                in ADMIN_SUBCOMMANDS -> ADMIN_PERMISSION
+                in PLAYER_SUBCOMMANDS -> PLAYER_PERMISSION
+                else -> {
+                    sender.sendMessage(message("usage-main", "%label%" to label))
+                    return true
+                }
             }
-        }
         if (!sender.hasPermission(permission)) {
             sender.sendMessage(message("no-permission"))
             return true
@@ -60,7 +65,12 @@ class FkothCommand(
         return true
     }
 
-    private fun add(sender: CommandSender, label: String, args: Array<String>, service: FactionWinsService) {
+    private fun add(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+        service: FactionWinsService,
+    ) {
         if (args.size < 3) {
             sender.sendMessage(message("usage-add", "%label%" to label))
             return
@@ -72,12 +82,13 @@ class FkothCommand(
         }
 
         val (status, faction) = service.addWinsForPlayer(args[1], amount)
-        val reply = when (status) {
-            AddByPlayerResult.SUCCESS -> message("add-success", "%amount%" to amount.toString(), "%faction%" to (faction ?: "-"))
-            AddByPlayerResult.PLAYER_NOT_FOUND -> message("player-not-found")
-            AddByPlayerResult.PLAYER_OFFLINE -> message("player-offline")
-            AddByPlayerResult.NO_FACTION -> message("ignored-no-faction")
-        }
+        val reply =
+            when (status) {
+                AddByPlayerResult.SUCCESS -> message("add-success", "%amount%" to amount.toString(), "%faction%" to (faction ?: "-"))
+                AddByPlayerResult.PLAYER_NOT_FOUND -> message("player-not-found")
+                AddByPlayerResult.PLAYER_OFFLINE -> message("player-offline")
+                AddByPlayerResult.NO_FACTION -> message("ignored-no-faction")
+            }
         sender.sendMessage(reply)
     }
 
@@ -119,10 +130,11 @@ class FkothCommand(
 
     /** Writes faction-wins.hologram-location in config.yml (comments are kept) and restarts the hologram. */
     private fun setHologram(sender: CommandSender) {
-        val player = sender as? Player ?: run {
-            sender.sendMessage(message("stats-only-player"))
-            return
-        }
+        val player =
+            sender as? Player ?: run {
+                sender.sendMessage(message("stats-only-player"))
+                return
+            }
         try {
             plugin.configManager.saveLocation("faction-wins", "hologram-location", player.location)
         } catch (e: Exception) {
@@ -134,11 +146,15 @@ class FkothCommand(
         sender.sendMessage(message("hologram-set"))
     }
 
-    private fun stats(sender: CommandSender, service: FactionWinsService) {
-        val player = sender as? Player ?: run {
-            sender.sendMessage(message("stats-only-player"))
-            return
-        }
+    private fun stats(
+        sender: CommandSender,
+        service: FactionWinsService,
+    ) {
+        val player =
+            sender as? Player ?: run {
+                sender.sendMessage(message("stats-only-player"))
+                return
+            }
         val faction = service.factionOf(player.uniqueId)
         if (faction == null) {
             sender.sendMessage(message("no-faction"))
@@ -148,7 +164,10 @@ class FkothCommand(
         sender.sendMessage(message("stats-self", "%faction%" to faction, "%wins%" to wins.toString()))
     }
 
-    private fun top(sender: CommandSender, service: FactionWinsService) {
+    private fun top(
+        sender: CommandSender,
+        service: FactionWinsService,
+    ) {
         val size = plugin.configManager.config.getInt("faction-wins.top-size", 10).coerceIn(1, 100)
         sender.sendMessage(message("top-header", "%size%" to size.toString()))
         service.top(size).forEachIndexed { index, item ->
@@ -157,31 +176,41 @@ class FkothCommand(
                     "top-line",
                     "%position%" to (index + 1).toString(),
                     "%faction%" to item.faction,
-                    "%wins%" to item.wins.toString()
-                )
+                    "%wins%" to item.wins.toString(),
+                ),
             )
         }
     }
 
     /** `fkoth.<key>` from messages.yml with the FKoth prefix. */
-    private fun message(key: String, vararg placeholders: Pair<String, String>): String {
+    private fun message(
+        key: String,
+        vararg placeholders: Pair<String, String>,
+    ): String {
         val messages = plugin.configManager.messages
         return messages.raw("fkoth.prefix") + messages.raw("fkoth.$key", *placeholders)
     }
 
-    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> {
+    override fun onTabComplete(
+        sender: CommandSender,
+        command: Command,
+        alias: String,
+        args: Array<String>,
+    ): List<String> {
         val isAdmin = sender.hasPermission(ADMIN_PERMISSION)
-        val options: Collection<String> = when {
-            args.size == 1 -> buildList {
-                if (sender.hasPermission(PLAYER_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
-                if (isAdmin) addAll(ADMIN_SUBCOMMANDS)
+        val options: Collection<String> =
+            when {
+                args.size == 1 ->
+                    buildList {
+                        if (sender.hasPermission(PLAYER_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
+                        if (isAdmin) addAll(ADMIN_SUBCOMMANDS)
+                    }
+                !isAdmin || args.size != 2 -> emptyList()
+                args[0].equals("add", ignoreCase = true) -> Bukkit.getOnlinePlayers().map { it.name }
+                args[0].equals("remove", ignoreCase = true) || args[0].equals("set", ignoreCase = true) ->
+                    module.service?.top(Int.MAX_VALUE)?.map { it.faction } ?: emptyList()
+                else -> emptyList()
             }
-            !isAdmin || args.size != 2 -> emptyList()
-            args[0].equals("add", ignoreCase = true) -> Bukkit.getOnlinePlayers().map { it.name }
-            args[0].equals("remove", ignoreCase = true) || args[0].equals("set", ignoreCase = true) ->
-                module.service?.top(Int.MAX_VALUE)?.map { it.faction } ?: emptyList()
-            else -> emptyList()
-        }
         val prefix = args.last()
         return options.filter { it.startsWith(prefix, ignoreCase = true) }.sorted()
     }

@@ -20,7 +20,6 @@ import java.time.temporal.TemporalAdjusters
  * DST follows the configured zone: slots in a skipped hour don't fire, slots in a repeated hour fire twice.
  */
 class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
-
     @Volatile
     private var zone: ZoneId = ZoneOffset.UTC
 
@@ -31,12 +30,13 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
     fun reload() {
         nextStartCache = null
         val id = plugin.configManager.config.getString("settings.timezone", "UTC")
-        zone = try {
-            ZoneId.of(id)
-        } catch (e: DateTimeException) {
-            plugin.logger.warning("Invalid settings.timezone '$id', using UTC. Examples: Europe/Bucharest, UTC.")
-            ZoneOffset.UTC
-        }
+        zone =
+            try {
+                ZoneId.of(id)
+            } catch (e: DateTimeException) {
+                plugin.logger.warning("Invalid settings.timezone '$id', using UTC. Examples: Europe/Bucharest, UTC.")
+                ZoneOffset.UTC
+            }
     }
 
     override fun run() {
@@ -79,12 +79,16 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
             launchScheduled(arena)
             return
         }
-        plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            // /koth reload in the meantime replaces the arena objects
-            if (plugin.arenaManager.getArena(arena.name) === arena) {
-                launchScheduled(arena)
-            }
-        }, waitSeconds * 20L)
+        plugin.server.scheduler.runTaskLater(
+            plugin,
+            Runnable {
+                // /koth reload in the meantime replaces the arena objects
+                if (plugin.arenaManager.getArena(arena.name) === arena) {
+                    launchScheduled(arena)
+                }
+            },
+            waitSeconds * 20L,
+        )
     }
 
     private fun launchScheduled(arena: Arena) {
@@ -121,10 +125,11 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
         if (cached != null && nowMillis - cached.computedAt < NEXT_START_CACHE_MS) return cached.value
 
         val now = ZonedDateTime.now(zone)
-        val next = plugin.arenaManager.getArenas()
-            .filter { it.isEnabled }
-            .flatMap { arena -> arena.schedule.map { arena to nextOccurrence(it, now) } }
-            .minByOrNull { it.second }
+        val next =
+            plugin.arenaManager.getArenas()
+                .filter { it.isEnabled }
+                .flatMap { arena -> arena.schedule.map { arena to nextOccurrence(it, now) } }
+                .minByOrNull { it.second }
         nextStartCache = NextStart(next, nowMillis)
         return next
     }
@@ -141,7 +146,10 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
         private const val NEXT_START_CACHE_MS = 1000L
 
         /** First time strictly after [now] that matches [entry], in [now]'s zone. */
-        fun nextOccurrence(entry: ScheduleEntry, now: ZonedDateTime): ZonedDateTime {
+        fun nextOccurrence(
+            entry: ScheduleEntry,
+            now: ZonedDateTime,
+        ): ZonedDateTime {
             val candidate = now.with(TemporalAdjusters.nextOrSame(entry.day)).with(entry.time)
             return if (candidate.isAfter(now)) candidate else candidate.plusWeeks(1)
         }
