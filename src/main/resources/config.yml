@@ -6,6 +6,16 @@ settings:
   # The timezone used for the scheduler (e.g., Europe/Bucharest, America/New_York, UTC)
   timezone: "UTC"
 
+  # true: players from the same faction capture together; the zone is only contested
+  #       when players from different factions (or factionless players) are in it.
+  # false: every player captures alone; any two players in the zone contest it.
+  # Has no effect without Factions installed (everyone captures alone).
+  faction-capture: true
+
+  # Spectators and vanished staff never capture or contest a zone. true: creative players don't
+  # either (they can't be killed). Set to false if you want to test a KoTH alone in creative.
+  ignore-creative: true
+
 discord:
   enabled: false
   webhook-url: "https://discord.com/api/webhooks/your-webhook-url-here"
@@ -13,6 +23,110 @@ discord:
     started: "#00FF00"
     captured: "#FFA500"
     ended: "#FF0000"
+
+# ========================================== #
+#        Faction KoTH wins (/fkoth)          #
+# ========================================== #
+# Every capture adds 1 win to the capturer's faction. Formerly the FKothWins addon:
+# remove FKothWins.jar; on the first start its plugins/FKothWins/faction-wins.yml is
+# imported automatically. DinoFtop reads the wins through the same FKothApi service.
+# Placeholders keep their names: %fkoth_faction_wins%, %fkoth_top_1_name%, ...
+faction-wins:
+  enabled: true
+  storage-file: "faction-wins.yml"
+  # true: captures by players without a faction don't count; false: they go to "Wilderness"
+  ignore-no-faction-winner: true
+  # Remove a faction's wins when it disbands
+  delete-wins-on-faction-disband: true
+  # /fkoth add <player> also works for offline players (looked up in Factions' data)
+  allow-offline-player-lookup: true
+  # Entries shown by /fkoth top
+  top-size: 10
+  # Top factions hologram (needs DecentHolograms)
+  hologram:
+    enabled: true
+    id: "fkoth_top5"
+    refresh-seconds: 15
+    entries: 5
+    title: "&6&lTop 5 KOTH Factions"
+    line-format: "&e#%position%. &f%faction% &7- &6%wins%"
+    empty-line-format: "&e#%position%. &7-"
+  # Where the hologram stands. Set it in-game with /fkoth sethologram. Empty world = no hologram.
+  hologram-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+# ========================================== #
+#        KOTH Arena (LMS-style event)        #
+# ========================================== #
+# Used by KoTH types with "koth-arena: true" (see the "arena" type below).
+#  1. /koth start (or the schedule) opens /koth join for join-time seconds.
+#     Joining teleports the player to arena-location; joined players are invincible
+#     and can only use allowed-commands. Players keep their own inventory.
+#  2. When the countdown ends the KoTH starts: invincibility is removed and only
+#     joined players can capture. Dying, logging out, /koth leave or being teleported
+#     away means you're out for good (no rejoining).
+#  3. After the capture, players stay post-capture-time seconds, then everyone still
+#     in the arena is teleported to exit-location. Dead players respawn there too.
+# Scheduled arena KoTHs open the join join-time before the scheduled time, so the
+# KoTH itself starts at the time in arenas.yml.
+koth-arena:
+  enabled: true
+  join-time: 300 # 5 minutes before the start
+  post-capture-time: 60 # 1 minute after the capture
+  min-players: 2 # cancelled if fewer players joined when the countdown ends
+  # Seconds before the start at which "KOTH starts in ..." is broadcast
+  countdown-announcements: [240, 180, 120, 60, 30, 10, 5, 4, 3, 2, 1]
+  # Also invincible during post-capture-time (true: nobody can be killed after the winner is decided)
+  invincible-after-capture: true
+  # While the event runs, players in it and players outside it can't damage each other
+  block-outsider-pvp: true
+  # Blocks from arena-location beyond which a player counts as having left the arena (eliminated,
+  # no more invincibility). The capture zone must be inside it. 0 = no limit: then only teleports,
+  # portals, logging out and /koth leave count as leaving. Set it if the arena isn't enclosed.
+  arena-radius: 0
+
+  # Where /koth join teleports players. Set it in-game with /koth setarena, or edit it here.
+  # Until a loaded world is set, arena KoTHs refuse to start.
+  arena-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+  # Where players are teleported after the event and where dead players respawn.
+  # Set it in-game with /koth setexit. Empty or unknown world = the main world's spawn.
+  exit-location:
+    world: ""
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+  # The only commands joined players can use (/koth always works, for /koth leave).
+  # koth.bypass ignores this and the arena protection.
+  allowed-commands:
+    - "msg"
+    - "r"
+    - "tell"
+
+  # Inside the KoTH capture zone while the event runs. false = forbidden.
+  arena-protection:
+    block-placing: false
+    block-breaking: false
+    buckets: false
+    pearls: false
+    lava: false
+    water: false
+    tnt: false
+    pistons: false
 
 # ========================================== #
 #               KoTH Types                   #
@@ -23,6 +137,9 @@ types:
   koth:
     capture-time: 300 # In seconds (5 minutes)
     knock-behavior: "PAUSE" # Options: PAUSE, RESET (when capturer gets knocked off)
+    # Seconds after which an uncaptured KoTH stops by itself; 0 = runs until captured or /koth stop.
+    # Only one KoTH runs at a time, so one nobody captures blocks every later scheduled start.
+    max-duration: 0
     rewards:
       - "give %player% diamond 16"
       - "eco give %player% 5000"
@@ -30,8 +147,6 @@ types:
       start: "ENDERDRAGON_GROWL"
       capture-tick: "CLICK"
       captured: "LEVEL_UP"
-    tournament-mode:
-      enabled: false
 
   # High-tier KoTH example
   superkoth:
@@ -44,38 +159,15 @@ types:
       start: "WITHER_SPAWN"
       capture-tick: "NOTE_PLING"
       captured: "ENDERDRAGON_DEATH"
-    tournament-mode:
-      enabled: false
 
-  # Special Elimination/Tournament KoTH example
-  tournament:
-    capture-time: 900
+  # KOTH Arena example (settings in koth-arena above)
+  arena:
+    koth-arena: true
+    capture-time: 300
     knock-behavior: "PAUSE"
     rewards:
       - "crate give %player% event 1"
-    tournament-mode:
-      enabled: true
-      registration-time: 300 # 5 minutes to do /koth join
-      allow-spectator: false
-      command-restrictions:
-        enabled: true
-        blocked-commands:
-          - "ec"
-          - "enderchest"
-          - "bp"
-          - "backpack"
-          - "back"
-          - "home"
-          - "spawn"
-          - "tpa"
-          - "tpahere"
-          - "f home"
-      arena-protection:
-        block-placing: false
-        block-breaking: false
-        buckets: false
-        pearls: false
-        lava: false
-        water: false
-        tnt: false
-        pistons: false
+    sounds:
+      start: "ENDERDRAGON_GROWL"
+      capture-tick: "CLICK"
+      captured: "LEVEL_UP"

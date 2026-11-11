@@ -3,9 +3,34 @@ version: 1.0.0
 main: com.puk3p.koth.KoTHPlugin
 author: Puk3p
 description: Advanced KoTH Plugin optimized for large faction servers.
-softdepend: [Factions, PlaceholderAPI]
+# Multiverse-Core: so the worlds it loads exist before arenas and locations are read
+softdepend: [Factions, PlaceholderAPI, DecentHolograms, Multiverse-Core]
+# DinoFtop reads faction wins through the FKothApi service; enable before it so the service exists.
+loadbefore: [DinoFtop]
 
 commands:
   koth:
     description: Main KoTH command
+    usage: /<command> help
     aliases: [koths]
+  fkoth:
+    description: Faction KoTH wins
+    usage: /<command> <add|remove|set|reload|debug|sethologram|stats|top>
+    aliases: [fkw]
+
+permissions:
+  koth.admin:
+    description: Create, edit, start and stop KoTH arenas, and reload the plugin.
+    default: op
+  koth.join:
+    description: Join or leave the KOTH Arena (/koth join, /koth leave).
+    default: true
+  koth.bypass:
+    description: Ignore KOTH Arena protection and its command lock.
+    default: op
+  fkoth.admin:
+    description: /fkoth add, remove, set, reload, debug, sethologram
+    default: op
+  fkoth.player:
+    description: /fkoth stats and /fkoth top
+    default: true

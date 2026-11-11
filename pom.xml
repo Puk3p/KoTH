@@ -11,7 +11,8 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <kotlin.version>1.9.22</kotlin.version>
+        <!-- 2.x compiler runs on modern JDKs (1.9.x crashes on JDK 25) and still emits Java 8 bytecode -->
+        <kotlin.version>2.3.21</kotlin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -26,10 +27,10 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
-        <!-- The repository for dev.kitteh:factions -->
+        <!-- JitPack (legacy com.massivecraft Factions API) -->
         <repository>
-            <id>dependency-download-releases</id>
-            <url>https://dependency.download/releases</url>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
         </repository>
     </repositories>
 
@@ -57,12 +58,24 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- FactionsUUID Dependency -->
+        <!--
+            Legacy Factions API (com.massivecraft.factions) for 1.8.8 servers.
+            Compile-only: at runtime the hook binds to whatever "Factions" plugin is installed
+            (legacy FactionsUUID 1.6.9.5-U0.x or SaberFactions). The official legacy FactionsUUID
+            artifact is no longer published to any reachable repo; SaberFactions is a fork with
+            the same FPlayers/FPlayer/Faction API. Do NOT use dev.kitteh:factions (4.x is 1.21+/Java 21).
+        -->
         <dependency>
-            <groupId>dev.kitteh</groupId>
-            <artifactId>factions</artifactId>
-            <version>4.4.0</version>
+            <groupId>com.github.SaberLLC</groupId>
+            <artifactId>Saber-Factions</artifactId>
+            <version>2.8.8-STABLE</version>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 
@@ -108,11 +121,15 @@
                 </configuration>
             </plugin>
 
-            <!-- Shade Plugin (Include Kotlin Stdlib in the final JAR) -->
+            <!--
+                Shade Plugin: bundles the Kotlin stdlib, relocated into this plugin's own package.
+                Bukkit shares classes between plugins, so an un-relocated stdlib would clash with any
+                other plugin that bundles a different Kotlin version (NoSuchMethodError at runtime).
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.4</version>
+                <version>3.6.0</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -121,6 +138,31 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <relocations>
+                                <relocation>
+                                    <pattern>kotlin</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.kotlin</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.jetbrains.annotations</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.jetbrains.annotations</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.intellij.lang.annotations</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.intellij.annotations</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <filters>
+                                <filter>
+                                    <artifact>org.jetbrains*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/MANIFEST.MF</exclude>
+                                        <exclude>META-INF/versions/**</exclude>
+                                        <exclude>META-INF/maven/**</exclude>
+                                        <exclude>META-INF/*.kotlin_module</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                         </configuration>
                     </execution>
                 </executions>

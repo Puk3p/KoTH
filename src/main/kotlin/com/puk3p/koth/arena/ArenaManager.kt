@@ -1,7 +1,14 @@
 package com.puk3p.koth.arena
 
 import com.puk3p.koth.KoTHPlugin
+import com.puk3p.koth.event.KothStartEvent
+import com.puk3p.koth.scheduler.ScheduleParser
+import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.Sound
+import org.bukkit.configuration.ConfigurationSection
+import org.bukkit.entity.Player
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class ArenaManager(private val plugin: KoTHPlugin) {
@@ -34,7 +41,7 @@ class ArenaManager(private val plugin: KoTHPlugin) {
     }
 
     /**
-     * Quickly checks if a location is inside ANY active arena region.
+     * Returns the first arena whose region contains the location (active or not).
      */
     fun getArenaAt(location: Location): Arena? {
         return arenas.values.firstOrNull { it.region.contains(location) }
@@ -42,5 +49,254 @@ class ArenaManager(private val plugin: KoTHPlugin) {
 
     fun clearArenas() {
         arenas.clear()
+    }
+
+    // ------------------------------------------------------------------ //
+    //  KoTH types (config.yml)
+    // ------------------------------------------------------------------ //
+
+    fun getTypes(): Set<String> {
+        return plugin.configManager.config.getConfigurationSection("types")?.getKeys(false) ?: emptySet()
+    }
+
+    /** Resolves a type typed by a user to its exact config.yml key, ignoring case. */
+    fun findType(input: String): String? {
+        return getTypes().firstOrNull { it.equals(input, ignoreCase = true) }
+    }
+
+    /**
+     * Whether a player may count towards capturing this arena.
+     * In a KOTH Arena event, only players who joined (and are still in) may enter the zone.
+     */
+    fun canEnter(arena: Arena, uuid: UUID): Boolean {
+        val kothArena = plugin.kothArena
+        if (!kothArena.isEventArena(arena)) return true
+        return kothArena.isFighting && kothArena.isParticipant(uuid)
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Persistence (arenas.yml)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Replaces the in-memory arenas with the contents of arenas.yml.
+     * Invalid entries are skipped with a warning (and left untouched on disk).
+     */
+    fun loadArenas() {
+        arenas.clear()
+        val root = plugin.configManager.arenasConfig.getConfigurationSection(ROOT)
+        if (root != null) {
+            for (name in root.getKeys(false)) {
+                val section = root.getConfigurationSection(name)
+                if (section == null) {
+                    plugin.logger.warning("Skipping arena '$name': not a valid section in arenas.yml.")
+                    continue
+                }
+                parseArena(name, section)?.let { addArena(it) }
+            }
+        }
+        val slots = arenas.values.sumOf { it.schedule.size }
+        plugin.logger.info("Loaded ${arenas.size} arena(s) with $slots scheduled start(s) per week.")
+    }
+
+    private fun parseArena(name: String, section: ConfigurationSection): Arena? {
+        val type = section.getString("type")?.let { findType(it) }
+        if (type == null) {
+            plugin.logger.warning("Skipping arena '$name': type '${section.getString("type")}' is not defined in config.yml.")
+            return null
+        }
+
+        val worldName = section.getString("world")
+        val region = section.getConfigurationSection("region")
+        if (worldName == null || region == null || REGION_KEYS.any { !region.isInt(it) }) {
+            plugin.logger.warning("Skipping arena '$name': missing 'world' or integer region coordinates.")
+            return null
+        }
+
+        val spawn = section.getConfigurationSection("spawn")?.let { sp ->
+            val world = Bukkit.getWorld(worldName)
+            if (world == null) {
+                plugin.logger.warning("Arena '$name': world '$worldName' is not loaded, ignoring its spawn point.")
+                null
+            } else {
+                Location(
+                    world,
+                    sp.getDouble("x"), sp.getDouble("y"), sp.getDouble("z"),
+                    sp.getDouble("yaw").toFloat(), sp.getDouble("pitch").toFloat()
+                )
+            }
+        }
+
+        return Arena(
+            name = name,
+            type = type,
+            region = Region.of(
+                worldName,
+                region.getInt("min-x"), region.getInt("min-y"), region.getInt("min-z"),
+                region.getInt("max-x"), region.getInt("max-y"), region.getInt("max-z")
+            ),
+            spawnPoint = spawn,
+            isEnabled = section.getBoolean("enabled", true),
+            schedule = ScheduleParser.parse(section.getConfigurationSection("schedule"), name, plugin.logger)
+        )
+    }
+
+    /**
+     * Writes the arena to arenas.yml and saves the file.
+     * Keys this class doesn't manage (e.g. `schedule`) are left as they are.
+     */
+    fun saveArena(arena: Arena) {
+        val config = plugin.configManager.arenasConfig
+        val path = "$ROOT.${arena.name}"
+        val region = arena.region
+
+        config.set("$path.type", arena.type)
+        config.set("$path.enabled", arena.isEnabled)
+        config.set("$path.world", region.worldName)
+        config.set("$path.region.min-x", region.minX)
+        config.set("$path.region.min-y", region.minY)
+        config.set("$path.region.min-z", region.minZ)
+        config.set("$path.region.max-x", region.maxX)
+        config.set("$path.region.max-y", region.maxY)
+        config.set("$path.region.max-z", region.maxZ)
+
+        // Only written when known: a spawn skipped at load time (world not loaded) must not be erased.
+        arena.spawnPoint?.let { spawn ->
+            config.set("$path.spawn.x", spawn.x)
+            config.set("$path.spawn.y", spawn.y)
+            config.set("$path.spawn.z", spawn.z)
+            config.set("$path.spawn.yaw", spawn.yaw.toDouble())
+            config.set("$path.spawn.pitch", spawn.pitch.toDouble())
+        }
+
+        plugin.configManager.saveArenas()
+    }
+
+    fun deleteArena(arena: Arena) {
+        removeArena(arena.name)
+        plugin.configManager.arenasConfig.set("$ROOT.${arena.name}", null)
+        plugin.configManager.saveArenas()
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Lifecycle
+    // ------------------------------------------------------------------ //
+
+    enum class StartResult { STARTED, JOIN_OPENED, ALREADY_RUNNING, ANOTHER_RUNNING, CANCELLED, NO_ARENA_LOCATION }
+
+    /** The arena that is running, or used by a KOTH Arena event (join or post-capture phase), if any. */
+    fun busyArena(): Arena? {
+        return getActiveArena() ?: plugin.kothArena.arena
+    }
+
+    /**
+     * Entry point for /koth start and the scheduler. KOTH Arena types open /koth join first
+     * (the KoTH itself starts when the countdown ends); other types start right away.
+     * Ignores the arena's `enabled` flag; that is checked by the scheduler.
+     */
+    fun launch(arena: Arena): StartResult {
+        if (arena == busyArena()) return StartResult.ALREADY_RUNNING
+        if (busyArena() != null) return StartResult.ANOTHER_RUNNING
+        if (plugin.kothArena.isEventArena(arena)) {
+            return if (plugin.kothArena.openJoin(arena)) StartResult.JOIN_OPENED else StartResult.NO_ARENA_LOCATION
+        }
+        return startArena(arena)
+    }
+
+    /**
+     * Starts the KoTH itself. Use [launch] instead, except for a KOTH Arena event
+     * starting its own arena when the join countdown ends.
+     */
+    fun startArena(arena: Arena): StartResult {
+        if (arena.isActive) return StartResult.ALREADY_RUNNING
+        if (getActiveArena() != null) return StartResult.ANOTHER_RUNNING
+
+        val event = KothStartEvent(arena)
+        Bukkit.getPluginManager().callEvent(event)
+        if (event.isCancelled) return StartResult.CANCELLED
+
+        arena.playersInside.clear()
+        arena.resetCapture(captureTime(arena))
+
+        // PlayerMoveEvent only fires on movement, so count players already standing in the zone.
+        for (player in Bukkit.getOnlinePlayers()) {
+            if (!player.isDead && arena.region.contains(player.location) && canEnter(arena, player.uniqueId)) {
+                arena.playersInside.add(player.uniqueId)
+            }
+        }
+
+        Bukkit.broadcastMessage(
+            plugin.configManager.messages.get(
+                "events.started",
+                "%type%" to arena.type,
+                "%arena%" to arena.name
+            )
+        )
+        playSound(arena, "start")
+        plugin.discordService.kothStarted(arena)
+        return StartResult.STARTED
+    }
+
+    /**
+     * Force-stops the arena, announcing it unless [broadcast] is false.
+     * @return false if the arena was already idle.
+     */
+    fun stopArena(arena: Arena, broadcast: Boolean = true): Boolean {
+        if (arena.state == ArenaState.WAITING) return false
+        resetToIdle(arena)
+        if (broadcast) {
+            Bukkit.broadcastMessage(plugin.configManager.messages.get("events.stopped", "%arena%" to arena.name))
+        }
+        plugin.discordService.kothEnded(arena)
+        return true
+    }
+
+    /** Called by the capture task after a successful capture. */
+    fun finishArena(arena: Arena) {
+        playSound(arena, "captured")
+        resetToIdle(arena)
+    }
+
+    private fun resetToIdle(arena: Arena) {
+        arena.state = ArenaState.WAITING
+        arena.capturingTeam = null
+        arena.capturingPlayer = null
+        arena.capturingPlayerName = null
+        arena.remainingSeconds = 0
+        arena.elapsedSeconds = 0
+        arena.playersInside.clear()
+        plugin.kothArena.onArenaEnded(arena)
+    }
+
+    /** Seconds a player must hold the zone, from `types.<type>.capture-time`. */
+    fun captureTime(arena: Arena): Int {
+        return plugin.configManager.config.getInt("types.${arena.type}.capture-time", 300).coerceAtLeast(1)
+    }
+
+    /**
+     * Plays `types.<type>.sounds.<key>` to the given players (everyone online by default), if configured.
+     * An invalid sound name is logged once per config path, not on every call.
+     */
+    fun playSound(arena: Arena, key: String, players: Collection<Player> = Bukkit.getOnlinePlayers()) {
+        val path = "types.${arena.type}.sounds.$key"
+        val name = plugin.configManager.config.getString(path) ?: return
+        val sound = try {
+            Sound.valueOf(name.uppercase())
+        } catch (e: IllegalArgumentException) {
+            if (invalidSoundPaths.add(path)) {
+                plugin.logger.warning("Invalid sound '$name' at $path (use 1.8 Sound names).")
+            }
+            return
+        }
+        for (player in players) {
+            player.playSound(player.location, sound, 1f, 1f)
+        }
+    }
+
+    private val invalidSoundPaths = mutableSetOf<String>()
+
+    companion object {
+        private const val ROOT = "arenas"
+        private val REGION_KEYS = listOf("min-x", "min-y", "min-z", "max-x", "max-y", "max-z")
     }
 }
