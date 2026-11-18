@@ -12,6 +12,18 @@
     <Match>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
+    <!--
+        MySQL code: Kotlin's use {} closes statements and result sets in a finally block, which
+        SpotBugs can't follow through the inline function. The only non-constant part of the SQL is
+        the table name (database.table-prefix, checked against [A-Za-z0-9_]); values are always ? parameters.
+    -->
+    <Match>
+        <Or>
+            <Class name="~com\.puk3p\.koth\.database\..*"/>
+            <Class name="~com\.puk3p\.koth\.pvppoints\.MySqlPvpPointsStorage.*"/>
+        </Or>
+        <Bug pattern="OBL_UNSATISFIED_OBLIGATION,OBL_UNSATISFIED_OBLIGATION_EXCEPTION_EDGE,ODR_OPEN_DATABASE_RESOURCE,SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE,SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING"/>
+    </Match>
     <!-- Kotlin collection casts are safe -->
     <Match>
         <Bug pattern="BC_BAD_CAST_TO_ABSTRACT_COLLECTION"/>

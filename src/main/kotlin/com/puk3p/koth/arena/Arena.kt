@@ -16,9 +16,14 @@ class Arena(
     val region: Region,
     var spawnPoint: Location? = null,
     var isEnabled: Boolean = true,
-    // Weekly start slots, read from arenas.yml (edited by hand, applied with /koth reload)
-    val schedule: List<ScheduleEntry> = emptyList(),
+    schedule: List<ScheduleEntry> = emptyList(),
 ) {
+    // Weekly start slots from arenas.yml. Changed with /koth schedule through ArenaManager.setSchedule,
+    // which swaps in a new list, so PlaceholderAPI threads always see a complete one.
+    @Volatile
+    var schedule: List<ScheduleEntry> = schedule
+        internal set
+
     @Volatile
     var state: ArenaState = ArenaState.WAITING
 

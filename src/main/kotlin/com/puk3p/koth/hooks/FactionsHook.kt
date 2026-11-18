@@ -6,6 +6,9 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import java.util.UUID
 
+/** See [FactionsHook.relationBetween]. Its own class, so it loads without Factions installed. */
+enum class FactionRelation { SAME_FACTION, ALLY, NONE }
+
 /**
  * Hook for the legacy Factions API (com.massivecraft.factions) used on 1.8.8 servers
  * by FactionsUUID 1.6.9.5-U0.x and SaberFactions.
@@ -83,6 +86,32 @@ class FactionsHook {
             false
         } catch (e: LinkageError) {
             false
+        }
+    }
+
+    /**
+     * How two players' factions relate. Factionless players are never related, even to each other
+     * (some Factions forks call two Wilderness players MEMBERs).
+     */
+    fun relationBetween(
+        a: Player,
+        b: Player,
+    ): FactionRelation {
+        return try {
+            val fPlayers = FPlayers.getInstance()
+            val fa = fPlayers.getByPlayer(a)
+            val fb = fPlayers.getByPlayer(b)
+            when {
+                !fa.hasFaction() || !fb.hasFaction() -> FactionRelation.NONE
+                fa.faction.isWilderness || fb.faction.isWilderness -> FactionRelation.NONE
+                fa.faction.id == fb.faction.id -> FactionRelation.SAME_FACTION
+                fa.getRelationTo(fb).isAlly -> FactionRelation.ALLY
+                else -> FactionRelation.NONE
+            }
+        } catch (e: Exception) {
+            FactionRelation.NONE
+        } catch (e: LinkageError) {
+            FactionRelation.NONE
         }
     }
 

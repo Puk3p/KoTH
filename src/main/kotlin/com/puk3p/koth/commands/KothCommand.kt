@@ -16,10 +16,12 @@ import java.util.logging.Level
 
 /**
  * /koth <subcommand>. join/leave need [JOIN_PERMISSION] (everyone by default),
- * everything else needs [ADMIN_PERMISSION] (or koth.start / koth.stop / koth.reload for just those).
+ * everything else needs [ADMIN_PERMISSION] (or koth.start / koth.stop / koth.reload / koth.schedule
+ * for just those). /koth schedule is in [ScheduleCommand].
  */
 class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabCompleter {
     private val selections get() = plugin.selections
+    private val schedule = ScheduleCommand(plugin)
 
     // Looked up on every use: /koth reload replaces the Messages instance.
     private val messages: Messages get() = plugin.configManager.messages
@@ -58,6 +60,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
             "setarena" -> setKothArenaLocation(sender, "arena-location", "admin.arena-location-set")
             "setexit" -> setKothArenaLocation(sender, "exit-location", "admin.exit-location-set")
             "list" -> list(sender)
+            "schedule" -> schedule.execute(sender, label, args)
             "start" -> start(sender, label, args)
             "stop" -> stop(sender, label, args)
             "reload" -> reload(sender)
@@ -65,7 +68,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
         return true
     }
 
-    /** koth.admin allows every admin subcommand; koth.start / koth.stop / koth.reload allow just their own. */
+    /** koth.admin allows every admin subcommand; koth.start / stop / reload / schedule allow just their own. */
     private fun hasAdminAccess(
         sender: CommandSender,
         sub: String,
@@ -400,6 +403,7 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                         addAll((PLAYER_SUBCOMMANDS + ADMIN_SUBCOMMANDS).filter { canUse(sender, it) })
                     }
                 !hasAdminAccess(sender, args[0].lowercase()) -> emptyList()
+                args[0].equals("schedule", ignoreCase = true) -> schedule.complete(args)
                 args.size == 2 ->
                     when (args[0].lowercase()) {
                         "delete", "setspawn", "start", "stop" -> arenas.getArenas().map { it.name }
@@ -422,16 +426,19 @@ class KothCommand(private val plugin: KoTHPlugin) : CommandExecutor, TabComplete
                 "start" to "koth.start",
                 "stop" to "koth.stop",
                 "reload" to "koth.reload",
+                "schedule" to "koth.schedule",
             )
         private val ADMIN_SUBCOMMANDS =
             listOf(
-                "wand", "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "start", "stop", "reload",
+                "wand", "pos1", "pos2", "create", "delete", "setspawn", "setarena", "setexit", "list", "schedule", "start", "stop",
+                "reload",
             )
 
         // messages.yml help.<subcommand>, in display order; pos1 also covers pos2, setarena covers setexit
         private val HELP_LINES =
             listOf(
-                "wand", "pos1", "create", "setspawn", "delete", "list", "start", "stop", "setarena", "reload", "join", "leave",
+                "wand", "pos1", "create", "setspawn", "delete", "list", "schedule", "start", "stop", "setarena", "reload", "join",
+                "leave",
             )
 
         // Arena names become YAML keys, so no dots or spaces.

@@ -14,6 +14,10 @@
         <!-- 2.x compiler runs on modern JDKs (1.9.x crashes on JDK 25) and still emits Java 8 bytecode -->
         <kotlin.version>2.3.21</kotlin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- MySQL storage (pvp-points.storage: mysql). Last versions that still run on Java 8. -->
+        <hikari.version>4.0.3</hikari.version>
+        <mysql.version>8.0.33</mysql.version>
+        <slf4j.version>1.7.36</slf4j.version>
     </properties>
 
     <repositories>
@@ -87,6 +91,46 @@
                     <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <!--
+            MySQL storage: connection pool, JDBC driver and the logging HikariCP needs, all bundled and
+            relocated (see the shade plugin). The 1.8.8 server ships a 2010s MySQL driver that can't log in
+            to MySQL 8, and other plugins may bundle their own versions.
+        -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikari.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>${mysql.version}</version>
+            <exclusions>
+                <!-- Only for the X DevAPI, which isn't used -->
+                <exclusion>
+                    <groupId>com.google.protobuf</groupId>
+                    <artifactId>protobuf-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <!-- Sends HikariCP's log lines to the server console (java.util.logging) -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+            <version>${slf4j.version}</version>
         </dependency>
     </dependencies>
 
@@ -185,7 +229,23 @@
                                     <pattern>org.intellij.lang.annotations</pattern>
                                     <shadedPattern>com.puk3p.koth.libs.intellij.annotations</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>com.zaxxer.hikari</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.hikari</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.mysql</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.mysql</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.slf4j</pattern>
+                                    <shadedPattern>com.puk3p.koth.libs.slf4j</shadedPattern>
+                                </relocation>
                             </relocations>
+                            <transformers>
+                                <!-- Keeps META-INF/services entries (java.sql.Driver) pointing at the relocated classes -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
                             <filters>
                                 <filter>
                                     <artifact>org.jetbrains*:*</artifact>
@@ -194,6 +254,16 @@
                                         <exclude>META-INF/versions/**</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/*.kotlin_module</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/versions/**</exclude>
+                                        <exclude>module-info.class</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

@@ -2,6 +2,7 @@ package com.puk3p.koth.arena
 
 import com.puk3p.koth.KoTHPlugin
 import com.puk3p.koth.event.KothStartEvent
+import com.puk3p.koth.scheduler.ScheduleEntry
 import com.puk3p.koth.scheduler.ScheduleParser
 import com.puk3p.koth.util.ClientDisplay
 import org.bukkit.Bukkit
@@ -186,6 +187,26 @@ class ArenaManager(private val plugin: KoTHPlugin) {
         }
 
         plugin.configManager.saveArenas()
+    }
+
+    /**
+     * Replaces the arena's weekly start slots and writes them to its `schedule` in arenas.yml
+     * (times on every day under `daily`, the rest per day). The scheduler uses them right away.
+     */
+    fun setSchedule(
+        arena: Arena,
+        entries: Collection<ScheduleEntry>,
+    ) {
+        arena.schedule = entries.distinct().sortedWith(ScheduleEntry.ORDER)
+
+        val config = plugin.configManager.arenasConfig
+        val path = "$ROOT.${arena.name}.schedule"
+        config.set(path, null)
+        for ((key, times) in ScheduleParser.toConfig(arena.schedule)) {
+            config.set("$path.$key", times)
+        }
+        plugin.configManager.saveArenas()
+        plugin.kothScheduler.scheduleChanged()
     }
 
     fun deleteArena(arena: Arena) {

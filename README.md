@@ -1,6 +1,6 @@
 # 🚩 KoTH (King of the Hill)
 
-A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.8.8**. Faction capture, an LMS-style KOTH Arena event, faction win tracking (`/fkoth`), a selection wand with particle preview, per-type protections and rewards, a weekly scheduler, PlaceholderAPI, DecentHolograms and Discord webhooks.
+A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.8.8**. Faction capture, an LMS-style KOTH Arena event, faction win tracking (`/fkoth`), a PvP points currency (`/pvppoints`), a selection wand with particle preview, per-type protections and rewards, a weekly scheduler, PlaceholderAPI, DecentHolograms and Discord webhooks.
 
 [![Build](https://github.com/Puk3p/KoTH/actions/workflows/build.yml/badge.svg)](https://github.com/Puk3p/KoTH/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/Puk3p/KoTH)](https://github.com/Puk3p/KoTH/releases/latest)
@@ -19,12 +19,13 @@ A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.
 8. [Arenas & Schedules (arenas.yml)](#-arenas--schedules-arenasyml)
 9. [KOTH Arena (LMS-style event)](#️-koth-arena-lms-style-event)
 10. [Faction KoTH Wins (/fkoth)](#-faction-koth-wins-fkoth)
-11. [Messages (messages.yml)](#-messages-messagesyml)
-12. [Staff & Vanish](#️-staff--vanish)
-13. [Discord Webhooks](#-discord-webhooks)
-14. [PlaceholderAPI](#-placeholderapi)
-15. [Developer API](#-developer-api)
-16. [Building & Releases](#️-building--releases)
+11. [PvP Points (/pvppoints)](#️-pvp-points-pvppoints)
+12. [Messages (messages.yml)](#-messages-messagesyml)
+13. [Staff & Vanish](#️-staff--vanish)
+14. [Discord Webhooks](#-discord-webhooks)
+15. [PlaceholderAPI](#-placeholderapi)
+16. [Developer API](#-developer-api)
+17. [Building & Releases](#️-building--releases)
 
 ---
 
@@ -35,12 +36,13 @@ A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.
 - **Knock behavior** — `PAUSE` (the next holder continues where it stopped) or `RESET` (the timer starts over). A maximum run time ends an uncaptured KoTH as a draw, so it never blocks later ones.
 - **KOTH Arena** — An LMS-style event: `/koth join` before the start, invincibility and command lock until the fight, one life, a post-capture countdown and a teleport out.
 - **Faction KoTH wins** — Every capture adds a win to the winner's faction: `/fkoth top` and `stats`, a DecentHolograms top hologram, placeholders and an API other plugins (e.g. DinoFtop) read from. Built in; replaces the old FKothWins addon.
+- **PvP points** — A per-player currency: points for kills and KoTH captures, lost on death, with anti-farm (same IP, same faction, allies, repeat kills). `/pvppoints`, top and placeholders; shops spend it with `/pvppoints take`. Stored in a file or in MySQL with a full history of every change.
 - **Selection wand** — `/koth wand`: left / right click two corner blocks. The selection is drawn in particles, visible only to you.
 - **Protections** — Per-type zone flags for block breaking / placing, buckets, enderpearls, fall damage, lava / water flow, TNT and pistons.
 - **Command restrictions** — `BLACKLIST` or `WHITELIST` commands (`/f home`, `/spawn`, `/ec`, ...) for players standing in a running zone.
 - **Visuals & sounds** — Action bar timer with a `CONTESTED` warning, start / capture titles, a firework on capture, and a sound with volume and pitch for every stage.
 - **Rewards** — `ALL` (every command) or `CHANCE` (a percentage roll per command, for rare keys).
-- **Scheduler** — Weekly times per arena in any timezone, with a minimum number of online players per type.
+- **Scheduler** — Weekly times per arena, set in game with `/koth schedule` (no reload), in any timezone, with a minimum number of online players per type.
 - **Staff friendly** — Vanished staff, spectators and (optionally) creative players never capture or contest.
 - **Discord webhooks** — Start, capture and draw embeds with the winner's head.
 
@@ -52,6 +54,7 @@ A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.
 |---|---|---|
 | Spigot / Paper 1.8.8 | Required | Java 8 or newer. Kotlin is bundled in the jar. |
 | Factions (FactionsUUID or SaberFactions) | Optional | Legacy `com.massivecraft.factions` API. Needed for faction capture and faction wins; without it every player captures alone. |
+| MySQL 5.7+ / MariaDB 10.2+ | Optional | PvP points storage with history (`pvp-points.storage: mysql`). The driver is bundled. |
 | PlaceholderAPI | Optional | `%koth_...%` and `%fkoth_...%` placeholders, PlaceholderAPI placeholders in reward commands. |
 | DecentHolograms | Optional | The faction wins top hologram. |
 | Multiverse-Core | Optional | Only so its worlds are loaded before arenas and locations are read. |
@@ -82,6 +85,9 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `/koth leave` | `koth.join` | Leave the KOTH Arena. You can't rejoin the same event. |
 | `/fkoth stats` | `fkoth.player` | Your faction's KoTH wins. |
 | `/fkoth top` | `fkoth.player` | Top factions by KoTH wins. |
+| `/pvppoints` | `pvppoints.player` | Your PvP points and rank. |
+| `/pvppoints <player>` | `pvppoints.player` | Someone else's PvP points. |
+| `/pvppoints top` | `pvppoints.player` | Top players by PvP points. |
 
 ### Admins
 
@@ -93,6 +99,10 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `/koth setspawn <name>` | `koth.admin` | Save your position as the arena's spawn point in `arenas.yml` (stored only; nothing teleports there yet). |
 | `/koth delete <name>` | `koth.admin` | Delete an arena. |
 | `/koth list` | `koth.admin` | List arenas with their type, state and whether they're enabled. |
+| `/koth schedule [list] [name]` | `koth.schedule` | Show when arenas start, and the next start. |
+| `/koth schedule add <name> <day> <HH:mm>...` | `koth.schedule` | Add start times, e.g. `add nether friday 18:00 22:00`. |
+| `/koth schedule remove <name> <day> [HH:mm...]` | `koth.schedule` | Remove start times (without a time: everything on that day). |
+| `/koth schedule clear <name>` | `koth.schedule` | Remove all start times of an arena. |
 | `/koth setarena` / `setexit` | `koth.admin` | Set the KOTH Arena location / exit location to your position (saved in `config.yml`). |
 | `/koth start <name>` | `koth.start` | Start a KoTH. KOTH Arena types open `/koth join` first. |
 | `/koth stop [name]` | `koth.stop` | Stop the running KoTH or KOTH Arena event. |
@@ -102,8 +112,12 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `/fkoth set <faction> <n>` | `fkoth.admin` | Set a faction's wins. |
 | `/fkoth sethologram` | `fkoth.admin` | Place the top factions hologram at your position. |
 | `/fkoth reload` / `debug` | `fkoth.admin` | Reload the faction wins settings / show the status of every integration. |
+| `/pvppoints give <player> <n>` | `pvppoints.admin` | Give PvP points. |
+| `/pvppoints take <player> <n>` | `pvppoints.admin` | Take PvP points; fails without taking anything if the player has fewer. |
+| `/pvppoints set <player> <n>` | `pvppoints.admin` | Set a player's PvP points. |
+| `/pvppoints history <player> [n]` | `pvppoints.admin` | A player's latest point changes and why (MySQL storage). |
 
-`/fkoth` also has the alias `/fkw`.
+`/fkoth` also has the alias `/fkw`, and `/pvppoints` has `/pvpp`.
 
 ---
 
@@ -115,10 +129,13 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `koth.start` | op | `/koth start` only. |
 | `koth.stop` | op | `/koth stop` only. |
 | `koth.reload` | op | `/koth reload` only. |
+| `koth.schedule` | op | `/koth schedule` only. |
 | `koth.join` | everyone | `/koth join` and `/koth leave`. |
 | `koth.bypass` | op | Ignore zone protections, command restrictions and the KOTH Arena command lock. |
 | `fkoth.admin` | op | `/fkoth add`, `remove`, `set`, `reload`, `debug`, `sethologram`. |
 | `fkoth.player` | everyone | `/fkoth stats` and `/fkoth top`. |
+| `pvppoints.admin` | op | `/pvppoints give`, `take`, `set`, `history`. |
+| `pvppoints.player` | everyone | `/pvppoints`, `/pvppoints <player>`, `/pvppoints top`. |
 
 ---
 
@@ -144,7 +161,13 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 
    Zones lower than 3 blocks are extended upward, so a jumping player doesn't leave the zone.
 
-4. **Schedule it** (optional) — Add a `schedule` to the arena in `arenas.yml`, then `/koth reload`. Or start it by hand with `/koth start nether`.
+4. **Schedule it** (optional) — For example every Friday at 18:00 and 22:00:
+
+   ```
+   /koth schedule add nether friday 18:00 22:00
+   ```
+
+   Or start it by hand with `/koth start nether`. See [Arenas & Schedules](#-arenas--schedules-arenasyml).
 
 For a KOTH Arena (type `arena`), also set `/koth setarena` (where `/koth join` teleports players) and `/koth setexit` (where they go afterwards).
 
@@ -199,6 +222,7 @@ types:
       captured: { sound: "LEVEL_UP", volume: 1.0, pitch: 1.0 }
 
     rewards:
+      pvp-points: 25             # PvP points for the capturer (0 = none)
       mode: "ALL"                # ALL runs every command; CHANCE rolls each one's chance (percent)
       commands:
         - command: "give %player% diamond 16"
@@ -210,13 +234,35 @@ types:
 - Command restrictions match whole words: `"f home"` blocks `/f home` but not `/f show`. `/koth` always works.
 - Title times are in ticks. Titles can use `%arena%` and `%type%` (start) or `%player%` and `%faction%` (capture).
 - Reward placeholders: `%player%`, `%arena%`, `%faction%`, `%type%`, plus PlaceholderAPI placeholders.
-- The other sections (`discord`, `faction-wins`, `koth-arena`) are described below.
+- The other sections (`discord`, `faction-wins`, `pvp-points`, `koth-arena`) are described below.
 
 ---
 
 ## 📅 Arenas & Schedules (arenas.yml)
 
-`/koth create` writes arenas to `arenas.yml`. Schedules are added by hand, then applied with `/koth reload`.
+`/koth create` writes arenas to `arenas.yml`. Each arena has a weekly `schedule`, set in game with `/koth schedule` or by hand in the file.
+
+### In game
+
+```
+/koth schedule add nether friday 18:00 22:00     every Friday at 18:00 and 22:00
+/koth schedule add castle daily 12:00            every day at 12:00
+/koth schedule add castle sat,sun 15:00          Saturday and Sunday at 15:00
+/koth schedule remove nether friday 22:00        just that time
+/koth schedule remove nether friday              everything on Friday
+/koth schedule clear castle                      the whole schedule
+/koth schedule list                              all scheduled arenas and the next start
+/koth schedule list nether                       one arena
+```
+
+- Days: `monday` .. `sunday`, short names (`mon`, `fri`, ...), Romanian names (`luni`, `vineri`, `sambata`, ...), `daily`, or several with commas (`sat,sun`).
+- Times are `HH:mm` (24h) in `settings.timezone`; several can follow each other.
+- Changes are saved to `arenas.yml` and used right away: no `/koth reload`.
+- For a KOTH Arena, the time is when the fight starts: `/koth join` opens `join-time` earlier.
+
+### In arenas.yml
+
+Edit the file, then `/koth reload`. `/koth schedule` writes the same format.
 
 ```yaml
 arenas:
@@ -238,7 +284,8 @@ arenas:
 ```
 
 - Times use `settings.timezone`. Always quote them.
-- Day keys are English day names in any case, or `daily`. Invalid days or times are skipped with a console warning.
+- Day keys are the same as in the command (`friday`, `fri`, `vineri`, `daily`, `sat,sun`). Invalid days or times are skipped with a console warning.
+- `/koth schedule` rewrites the arena's `schedule` in a tidy form: times set on every day go under `daily`, the rest under their day.
 - Only one KoTH runs at a time. A slot that comes up while another KoTH runs is skipped (see the console), as is one with fewer players online than the type's `minimum-players-online`.
 
 ---
@@ -300,9 +347,80 @@ faction-wins:
 
 ---
 
+## ⚔️ PvP Points (/pvppoints)
+
+A currency per player, stored in `plugins/KoTH/pvp-points.yml`.
+
+- **Kills** — The killer gets `kill-reward`.
+- **Deaths** — The victim loses `death-penalty`: a fixed `amount` plus a `percent` of their balance, never below 0. With `only-player-kills: false`, deaths without a killer (fall, lava, ...) cost points too.
+- **Anti-farm** — No points for killing a player on the same IP, from your faction or an allied one, or the same player again within `same-victim-cooldown`. Such a kill doesn't cost the victim anything either, and the killer is told why.
+- **KoTH captures** — The capturer gets `types.<type>.rewards.pvp-points` (by default 25 for `koth`, 75 for `superkoth`, 50 for `arena`).
+- **Spending** — Shops and other plugins run `/pvppoints take <player> <amount>` from the console. It takes nothing and reports it when the player has fewer points, so check `%pvppoints_points%` in the shop's requirement first.
+
+```yaml
+pvp-points:
+  enabled: true                  # restart to apply
+  storage: "yaml"                # yaml or mysql; restart to apply
+  storage-file: "pvp-points.yml"
+  save-interval: 60              # yaml: seconds between saves (off the main thread), plus on shutdown
+  history-retention-days: 0      # mysql: delete history older than this (0 = keep forever)
+  starting-points: 0             # for a player's first join
+  kill-reward: 10
+  death-penalty:
+    amount: 5
+    percent: 0.0
+    only-player-kills: true
+  anti-farm:
+    same-victim-cooldown: 600    # seconds; 0 = no limit
+    ignore-same-faction: true
+    ignore-allies: true
+    ignore-same-ip: true         # behind BungeeCord without ip_forward, set to false
+  disabled-worlds: []
+  top-size: 10
+```
+
+Players are found by name if they're online or joined since PvP points were enabled; there are no Mojang lookups.
+
+### Storage: YAML or MySQL
+
+- **`yaml`** (default) — `plugins/KoTH/pvp-points.yml`, rewritten every `save-interval` seconds if anything changed (to a temporary file first, so a crash never leaves half a file), and on shutdown. No history.
+- **`mysql`** — the `database` section of `config.yml`, with a history of every change. Tables are created and upgraded automatically.
+
+```yaml
+database:
+  host: "localhost"
+  port: 3306
+  name: "koth"
+  username: "root"
+  password: ""          # put the real password only in the server's config.yml, never in the repository
+  table-prefix: "koth_"
+  pool-size: 3
+  connection-timeout: 5000
+  properties:           # extra JDBC driver properties
+    allowPublicKeyRetrieval: true
+```
+
+| Table | Contents |
+|---|---|
+| `koth_pvp_points` | One row per player: `uuid`, `name`, `points`, `created_at`, `updated_at` |
+| `koth_pvp_points_log` | One row per change: `uuid`, `name`, `delta`, `balance` after it, `reason` (`START`, `KILL`, `DEATH`, `CAPTURE`, `GIVE`, `TAKE`, `SET`, `IMPORT`), `detail` (victim, killer, arena or admin), `created_at` |
+| `koth_schema_version` | The tables' version, so later plugin versions can upgrade them |
+
+Times are epoch milliseconds: `FROM_UNIXTIME(created_at / 1000)` shows them in MySQL.
+
+How it stays exact:
+
+- **One server owns the table.** It keeps every balance in memory (so `/pvppoints take` and placeholders answer instantly) and writes each change as the new total, in order, on one background thread. Writing a change twice gives the same total, so retries are safe.
+- **Each batch of changes and its history lines are one transaction**: both are saved or neither.
+- **If MySQL goes down**, the server keeps working from memory and retries every few seconds (up to 30). If it stops before MySQL is back, the waiting changes go to `pvp-points-pending.yml` and are written first on the next start.
+- **If MySQL can't be reached at start** (or the login is wrong), PvP points stay off with an error in the console instead of starting from zero; nothing is changed.
+- **Switching from `yaml` to `mysql`**: on the first start with an empty table, `pvp-points.yml` is copied over (history reason `IMPORT`) and renamed to `pvp-points.yml.imported`.
+
+---
+
 ## 💬 Messages (messages.yml)
 
-Every text the plugin sends is in `messages.yml`, with `&` color codes and a global `prefix`. Sections: `general`, `admin`, `help`, `events`, `koth-arena`, `time-units`, `fkoth`, `wand`, `protection`, `placeholders`, `discord`.
+Every text the plugin sends is in `messages.yml`, with `&` color codes and a global `prefix`. Sections: `general`, `admin`, `help`, `schedule`, `events`, `koth-arena`, `time-units`, `fkoth`, `pvp-points`, `wand`, `protection`, `placeholders`, `discord`.
 
 - **Missing keys** fall back to the bundled text, so an older `messages.yml` keeps working after an update. A file with a YAML error is copied next to itself as `<name>.broken-<date>`, and the console says what to fix.
 - **Help** — `help.header` plus one line per command (`help.wand`, `help.create`, ...). Only the lines for commands the sender may use are shown. `%types%` in `help.create` lists the types from `config.yml`.
@@ -358,6 +476,8 @@ Capture embeds show the winner's head (`https://mc-heads.net/avatar/<player>/100
 When nothing is running, the name, state and time placeholders return `placeholders.none` from `messages.yml`; counts return `0`.
 
 `%fkoth_<placeholder>%`: `faction_name`, `faction_wins`, `faction_rank`, `top_size`, `top_<n>_name`, `top_<n>_wins`, `player_faction_wins_<player>` (same names as the FKothWins addon).
+
+`%pvppoints_<placeholder>%`: `points`, `points_formatted` (`1,234`), `rank` (`-` with no points), `top_<n>_name`, `top_<n>_points`.
 
 ---
 

@@ -30,6 +30,27 @@ discord:
     ended: "#FF0000"
 
 # ========================================== #
+#             MySQL / MariaDB                #
+# ========================================== #
+# Used by pvp-points when pvp-points.storage is "mysql". Tables are created automatically
+# (<table-prefix>pvp_points, <table-prefix>pvp_points_log, <table-prefix>schema_version).
+# Keep the real password only in the server's copy of this file.
+database:
+  host: "localhost"
+  port: 3306
+  name: "koth"
+  username: "root"
+  password: ""
+  table-prefix: "koth_"
+  pool-size: 3
+  # Milliseconds to wait for a connection before giving up
+  connection-timeout: 5000
+  # Extra JDBC driver properties. allowPublicKeyRetrieval lets MySQL 8 logins work when the
+  # server has no SSL; add useSSL: false only if your host says so.
+  properties:
+    allowPublicKeyRetrieval: true
+
+# ========================================== #
 #        Faction KoTH wins (/fkoth)          #
 # ========================================== #
 # Every capture adds 1 win to the capturer's faction. Formerly the FKothWins addon:
@@ -64,6 +85,50 @@ faction-wins:
     z: 0.0
     yaw: 0.0
     pitch: 0.0
+
+# ========================================== #
+#           PvP points (/pvppoints)          #
+# ========================================== #
+# A per-player currency. Earned from kills and KoTH captures (types.<type>.rewards.pvp-points),
+# lost on death. Shops and other plugins spend it with "/pvppoints take <player> <amount>", which
+# fails without taking anything if the player has fewer points. Placeholders: %pvppoints_points%,
+# %pvppoints_rank%, %pvppoints_top_1_name%, ... enabled and storage-file need a restart; the rest
+# applies on /koth reload.
+pvp-points:
+  enabled: true
+  # yaml: plugins/KoTH/pvp-points.yml. mysql: the database section below, plus a history of every
+  # change (/pvppoints history). Switching to mysql copies pvp-points.yml over on the first start.
+  # One server per table: this server keeps the balances in memory and is the only one writing them.
+  storage: "yaml"
+  storage-file: "pvp-points.yml"
+  # yaml: seconds between saves of the file (off the main thread), plus on shutdown.
+  # mysql: every change is written right away; this is how often old history is cleaned up.
+  save-interval: 60
+  # mysql: delete history older than this many days (0 = keep it forever)
+  history-retention-days: 0
+  # Points a player has the first time they join
+  starting-points: 0
+  # Points the killer gets for a kill that counts (see anti-farm)
+  kill-reward: 10
+  # What the victim loses when a kill counts: amount + percent of their balance (never below 0)
+  death-penalty:
+    amount: 5
+    percent: 0.0
+    # false: players also lose points when they die without a killer (fall, lava, ...)
+    only-player-kills: true
+  # A kill blocked here gives the killer nothing and costs the victim nothing
+  anti-farm:
+    # Seconds before killing the same player gives points again (0 = no limit)
+    same-victim-cooldown: 600
+    ignore-same-faction: true
+    ignore-allies: true
+    # Players on the same IP (alts). Behind BungeeCord this needs ip_forward; without it every
+    # player has the proxy's IP, so set this to false.
+    ignore-same-ip: true
+  # Worlds where kills and deaths don't change points
+  disabled-worlds: []
+  # Entries shown by /pvppoints top
+  top-size: 10
 
 # ========================================== #
 #        KOTH Arena (LMS-style event)        #
@@ -144,6 +209,7 @@ koth-arena:
 #   sounds                  1.8 sound names, with volume and pitch
 #   rewards                 mode ALL runs every command; CHANCE rolls each one's chance (percent).
 #                           Placeholders: %player%, %arena%, %faction%, %type% and PlaceholderAPI's.
+#                           pvp-points: points the capturer gets (0 = none; see pvp-points above).
 types:
   # ======================================== #
   # Standard KoTH                            #
@@ -215,6 +281,7 @@ types:
         pitch: 1.0
 
     rewards:
+      pvp-points: 25
       mode: "ALL" # Options: ALL (runs all), CHANCE (RNG based on percentages below)
       commands:
         - command: "give %player% diamond 16"
@@ -294,6 +361,7 @@ types:
         pitch: 1.0
 
     rewards:
+      pvp-points: 75
       mode: "CHANCE" # RNG based rewards
       commands:
         - command: "eco give %player% 50000"
@@ -368,6 +436,7 @@ types:
         pitch: 0.5
 
     rewards:
+      pvp-points: 50
       mode: "ALL"
       commands:
         - command: "crate give %player% event 1"

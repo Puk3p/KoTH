@@ -13,6 +13,8 @@ import com.puk3p.koth.kotharena.KothArenaManager
 import com.puk3p.koth.listeners.PlayerListener
 import com.puk3p.koth.listeners.ProtectionListener
 import com.puk3p.koth.listeners.WandListener
+import com.puk3p.koth.pvppoints.PvpPointsCommand
+import com.puk3p.koth.pvppoints.PvpPointsModule
 import com.puk3p.koth.scheduler.KothScheduler
 import com.puk3p.koth.services.DiscordService
 import com.puk3p.koth.services.RewardService
@@ -47,6 +49,10 @@ class KoTHPlugin : JavaPlugin() {
 
     /** Faction KoTH wins (/fkoth), formerly the FKothWins addon. */
     lateinit var factionWins: FactionWinsModule
+        private set
+
+    /** PvP points: per-player currency (/pvppoints). */
+    lateinit var pvpPoints: PvpPointsModule
         private set
 
     var factionsEnabled = false
@@ -110,6 +116,15 @@ class KoTHPlugin : JavaPlugin() {
             it.setTabCompleter(fkothCommand)
         }
 
+        // 9. PvP points: per-player currency from kills and captures, /pvppoints, %pvppoints_...%
+        pvpPoints = PvpPointsModule(this)
+        pvpPoints.enable()
+        val pvpPointsCommand = PvpPointsCommand(this, pvpPoints)
+        getCommand("pvppoints")?.let {
+            it.setExecutor(pvpPointsCommand)
+            it.setTabCompleter(pvpPointsCommand)
+        }
+
         logger.info("KoTH Plugin has been successfully enabled.")
     }
 
@@ -130,6 +145,9 @@ class KoTHPlugin : JavaPlugin() {
         placeholderHook = null
         if (::factionWins.isInitialized) {
             factionWins.disable()
+        }
+        if (::pvpPoints.isInitialized) {
+            pvpPoints.disable()
         }
         server.servicesManager.unregisterAll(this)
 

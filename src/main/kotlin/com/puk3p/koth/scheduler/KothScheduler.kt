@@ -12,7 +12,7 @@ import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 
 /**
- * Starts arenas at the times listed in their `schedule` (arenas.yml).
+ * Starts arenas at the times listed in their `schedule` (arenas.yml, or /koth schedule).
  *
  * Runs every second on the main thread and acts once per new minute. Minutes are tracked as
  * epoch minutes, so a timezone change on reload never replays slots, and up to
@@ -37,6 +37,14 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 plugin.logger.warning("Invalid settings.timezone '$id', using UTC. Examples: Europe/Bucharest, UTC.")
                 ZoneOffset.UTC
             }
+    }
+
+    /** The timezone schedule times are in (`settings.timezone`). */
+    val zoneId: ZoneId get() = zone
+
+    /** Call after an arena's schedule changes, so the next-start placeholders update right away. */
+    fun scheduleChanged() {
+        nextStartCache = null
     }
 
     override fun run() {
@@ -132,6 +140,12 @@ class KothScheduler(private val plugin: KoTHPlugin) : BukkitRunnable() {
                 .minByOrNull { it.second }
         nextStartCache = NextStart(next, nowMillis)
         return next
+    }
+
+    /** When [arena]'s schedule starts it next (enabled or not), in the configured timezone. */
+    fun nextStartOf(arena: Arena): ZonedDateTime? {
+        val now = ZonedDateTime.now(zone)
+        return arena.schedule.minOfOrNull { nextOccurrence(it, now) }
     }
 
     private class NextStart(val value: Pair<Arena, ZonedDateTime>?, val computedAt: Long)

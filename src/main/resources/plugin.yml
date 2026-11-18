@@ -17,6 +17,10 @@ commands:
     description: Faction KoTH wins
     usage: /<command> <add|remove|set|reload|debug|sethologram|stats|top>
     aliases: [fkw]
+  pvppoints:
+    description: PvP points
+    usage: /<command> [player|top|give|take|set|history]
+    aliases: [pvpp]
 
 permissions:
   koth.admin:
@@ -31,6 +35,9 @@ permissions:
   koth.reload:
     description: /koth reload only.
     default: op
+  koth.schedule:
+    description: /koth schedule only (list, add, remove, clear start times).
+    default: op
   koth.join:
     description: Join or leave the KOTH Arena (/koth join, /koth leave).
     default: true
@@ -42,4 +49,10 @@ permissions:
     default: op
   fkoth.player:
     description: /fkoth stats and /fkoth top
+    default: true
+  pvppoints.admin:
+    description: /pvppoints give, take, set, history
+    default: op
+  pvppoints.player:
+    description: /pvppoints, /pvppoints <player>, /pvppoints top
     default: true
