@@ -19,6 +19,7 @@ import com.puk3p.koth.scheduler.KothScheduler
 import com.puk3p.koth.services.DiscordService
 import com.puk3p.koth.services.RewardService
 import com.puk3p.koth.tasks.CaptureTickTask
+import com.puk3p.koth.util.SpigotLicense
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.logging.Level
 
@@ -63,6 +64,10 @@ class KoTHPlugin : JavaPlugin() {
 
     override fun onEnable() {
         logger.info("Initializing KoTH Plugin v${description.version}...")
+
+        // Premium watermark: logs which SpigotMC buyer this copy belongs to (or warns on a build
+        // that didn't come from Spigot). Never blocks startup; see SpigotLicense.
+        SpigotLicense.logStatus(logger)
 
         checkDependencies()
 
