@@ -1,41 +1,41 @@
 package com.puk3p.koth.pvppoints
 
+import com.massivecraft.factions.event.FactionDisbandEvent
+import com.massivecraft.factions.event.FactionRenameEvent
 import com.puk3p.koth.KoTHPlugin
 import com.puk3p.koth.event.KothCaptureEvent
+import com.puk3p.koth.hooks.FactionRef
 import com.puk3p.koth.hooks.FactionRelation
+import com.puk3p.koth.hooks.FactionsHook
 import com.puk3p.koth.util.formatDuration
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.PlayerDeathEvent
-import org.bukkit.event.player.PlayerJoinEvent
 import java.util.UUID
 import kotlin.math.floor
 
 /**
- * Where pvp-points come from (config.yml -> pvp-points):
- * - a kill gives the killer `kill-reward`, unless anti-farm blocks it (same IP, same faction,
- *   allies, or the same victim again within `same-victim-cooldown`);
- * - dying costs `death-penalty` (a fixed amount plus a percent of the balance), only for deaths
- *   that count, so a teammate's kill or an alt's farm costs nothing;
- * - a KoTH capture gives the capturer `types.<type>.rewards.pvp-points`.
- * Settings are read on every use, so /koth reload applies them.
+ * Where faction points come from (config.yml -> pvp-points); every amount goes to or comes from a
+ * faction, through the member who earned or lost it:
+ * - a kill gives the killer's faction `kill-reward`, unless anti-farm blocks it (same IP, same
+ *   faction, allies, or the same victim again within `same-victim-cooldown`);
+ * - dying costs the victim's faction `death-penalty` (a fixed amount plus a percent of the
+ *   faction's points), only for deaths that count, so a teammate's kill or an alt's farm costs nothing;
+ * - a KoTH capture gives the capturer's faction `types.<type>.rewards.pvp-points`.
+ * Players without a faction neither earn nor lose anything. Settings are read on every use, so
+ * /koth reload applies them.
  */
 class PvpPointsListener(
     private val plugin: KoTHPlugin,
     private val store: PvpPointsStore,
+    private val factions: FactionsHook,
 ) : Listener {
     private val config get() = plugin.configManager.config
 
     // When each killer last got points for each victim (main thread only)
     private val lastCountedKill = HashMap<Pair<UUID, UUID>, Long>()
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    fun onJoin(event: PlayerJoinEvent) {
-        val player = event.player
-        store.track(player.uniqueId, player.name, config.getInt("$ROOT.starting-points", 0))
-    }
 
     @EventHandler(priority = EventPriority.MONITOR)
     fun onDeath(event: PlayerDeathEvent) {
@@ -57,14 +57,16 @@ class PvpPointsListener(
         lastCountedKill[killer.uniqueId to victim.uniqueId] = System.currentTimeMillis()
         pruneCooldowns()
 
-        if (reward > 0) {
-            val balance = store.add(killer.uniqueId, killer.name, reward, PointsReason.KILL, victim.name)
+        val killerFaction = factions.factionOf(killer)
+        if (reward > 0 && killerFaction != null) {
+            val balance = store.add(killerFaction, reward, PointsReason.KILL, killer.name, victim.name)
             killer.sendMessage(
                 pvpMessage(
                     plugin,
                     "kill-reward",
                     "%points%" to reward.toString(),
                     "%victim%" to victim.name,
+                    "%faction%" to killerFaction.tag,
                     "%balance%" to balance.toString(),
                 ),
             )
@@ -78,13 +80,15 @@ class PvpPointsListener(
         val amount = config.getInt("types.${event.arena.type}.rewards.pvp-points", 0)
         if (amount <= 0) return
         val player = event.capturer
-        val balance = store.add(player.uniqueId, player.name, amount, PointsReason.CAPTURE, event.arena.name)
+        val faction = factions.factionOf(player) ?: return
+        val balance = store.add(faction, amount, PointsReason.CAPTURE, player.name, event.arena.name)
         player.sendMessage(
             pvpMessage(
                 plugin,
                 "capture-reward",
                 "%points%" to amount.toString(),
                 "%arena%" to event.arena.name,
+                "%faction%" to faction.tag,
                 "%balance%" to balance.toString(),
             ),
         )
@@ -99,7 +103,7 @@ class PvpPointsListener(
         if (config.getBoolean("$antiFarm.ignore-same-ip", true) && sameIp(killer, victim)) {
             return pvpMessage(plugin, "farm-same-ip", "%victim%" to victim.name)
         }
-        when (plugin.factionsHook?.relationBetween(killer, victim)) {
+        when (factions.relationBetween(killer, victim)) {
             FactionRelation.SAME_FACTION ->
                 if (config.getBoolean("$antiFarm.ignore-same-faction", true)) {
                     return pvpMessage(plugin, "farm-same-faction", "%victim%" to victim.name)
@@ -108,7 +112,7 @@ class PvpPointsListener(
                 if (config.getBoolean("$antiFarm.ignore-allies", true)) {
                     return pvpMessage(plugin, "farm-ally", "%victim%" to victim.name)
                 }
-            FactionRelation.NONE, null -> Unit
+            FactionRelation.NONE -> Unit
         }
         val cooldownSeconds = config.getLong("$antiFarm.same-victim-cooldown", 600)
         val last = lastCountedKill[killer.uniqueId to victim.uniqueId]
@@ -125,20 +129,22 @@ class PvpPointsListener(
         victim: Player,
         killer: Player?,
     ) {
-        val balance = store.points(victim.uniqueId)
+        val faction = factions.factionOf(victim) ?: return
+        val balance = store.points(faction.id)
         if (balance <= 0) return
         val fixed = config.getInt("$ROOT.death-penalty.amount", 5).coerceAtLeast(0)
         val percent = config.getDouble("$ROOT.death-penalty.percent", 0.0).coerceIn(0.0, 100.0)
         val lost = minOf(balance.toLong(), fixed + floor(balance * percent / 100).toLong()).toInt()
         if (lost <= 0) return
 
-        val newBalance = store.add(victim.uniqueId, victim.name, -lost, PointsReason.DEATH, killer?.name)
+        val newBalance = store.add(faction, -lost, PointsReason.DEATH, victim.name, killer?.name)
         victim.sendMessage(
             pvpMessage(
                 plugin,
                 if (killer != null) "death-penalty" else "death-penalty-no-killer",
                 "%points%" to lost.toString(),
                 "%killer%" to (killer?.name ?: ""),
+                "%faction%" to faction.tag,
                 "%balance%" to newBalance.toString(),
             ),
         )
@@ -164,5 +170,50 @@ class PvpPointsListener(
     private companion object {
         const val ROOT = PvpPointsModule.ROOT
         const val PRUNE_AT = 500
+    }
+}
+
+/**
+ * Keeps the stored tag in step when a faction renames itself (points are kept by Factions id, so
+ * they follow the faction either way; the tag is what the top and placeholders show).
+ * In its own class because not every Factions fork has this event.
+ */
+class PvpPointsRenameListener(
+    private val plugin: KoTHPlugin,
+    private val store: PvpPointsStore,
+) : Listener {
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onRename(event: FactionRenameEvent) {
+        val faction = event.faction ?: return
+        // The event fires before Factions applies the new tag, and the rename can still fail after it
+        plugin.server.scheduler.runTask(
+            plugin,
+            Runnable {
+                val tag = faction.tag?.trim().orEmpty()
+                if (tag.isNotEmpty()) store.rename(faction.id, tag)
+            },
+        )
+    }
+}
+
+/** A disbanded faction loses its points (config: pvp-points.delete-on-faction-disband). */
+class PvpPointsDisbandListener(
+    private val plugin: KoTHPlugin,
+    private val store: PvpPointsStore,
+) : Listener {
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    fun onDisband(event: FactionDisbandEvent) {
+        if (!plugin.configManager.config.getBoolean("${PvpPointsModule.ROOT}.delete-on-faction-disband", true)) return
+        val id = event.faction?.id ?: return
+        val entry = store.entry(id)?.takeIf { it.points > 0 } ?: return
+        // Who disbanded it, when there is someone (not for inactivity); older forks lack getPlayer()
+        val by =
+            try {
+                event.player?.name
+            } catch (e: LinkageError) {
+                null
+            }
+        store.set(FactionRef(id, entry.tag), 0, PointsReason.DISBAND, by)
+        plugin.logger.info("[PvpPoints] Faction '${entry.tag}' disbanded; removed its ${entry.points} point(s).")
     }
 }

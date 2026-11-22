@@ -104,6 +104,14 @@ class FactionWinsRepository(
         return value
     }
 
+    /** Removes every faction's wins (end of a wipe). @return how many factions had wins */
+    fun clearAll(): Int {
+        val count = winsByFaction.size
+        winsByFaction.clear()
+        save()
+        return count
+    }
+
     fun removeFaction(faction: String) {
         val key = resolveExistingKey(faction) ?: return
         winsByFaction.remove(key)

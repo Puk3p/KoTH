@@ -104,6 +104,9 @@ class FactionWinsService(
 
     fun clearFaction(faction: String) = repository.removeFaction(faction)
 
+    /** /fkoth reset confirm. @return how many factions had wins */
+    fun resetAll(): Int = repository.clearAll()
+
     fun top(limit: Int): List<FactionWins> = repository.top(limit)
 
     fun getRankForFaction(faction: String): Int? {

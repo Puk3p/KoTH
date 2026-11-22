@@ -15,11 +15,11 @@ commands:
     aliases: [koths]
   fkoth:
     description: Faction KoTH wins
-    usage: /<command> <add|remove|set|reload|debug|sethologram|stats|top>
+    usage: /<command> <add|remove|set|reset|reload|debug|sethologram|stats|top>
     aliases: [fkw]
   pvppoints:
-    description: PvP points
-    usage: /<command> [player|top|give|take|set|history]
+    description: Faction PvP points
+    usage: /<command> [player|faction|top|add|take|set|history|reset]
     aliases: [pvpp]
 
 permissions:
@@ -47,12 +47,18 @@ permissions:
   fkoth.admin:
     description: /fkoth add, remove, set, reload, debug, sethologram
     default: op
+  fkoth.reset:
+    description: /fkoth reset (delete every faction's KoTH wins, for a wipe)
+    default: op
   fkoth.player:
     description: /fkoth stats and /fkoth top
     default: true
   pvppoints.admin:
-    description: /pvppoints give, take, set, history
+    description: /pvppoints add, take, set, history
+    default: op
+  pvppoints.reset:
+    description: /pvppoints reset (every faction's points back to 0, for a wipe)
     default: op
   pvppoints.player:
-    description: /pvppoints, /pvppoints <player>, /pvppoints top
+    description: /pvppoints, /pvppoints <player|faction>, /pvppoints top
     default: true

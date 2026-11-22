@@ -2,6 +2,7 @@ package com.puk3p.koth.pvppoints
 
 import com.puk3p.koth.KoTHPlugin
 import com.puk3p.koth.database.Database
+import com.puk3p.koth.hooks.FactionsHook
 import org.bukkit.scheduler.BukkitTask
 import java.io.File
 import java.io.IOException
@@ -12,10 +13,12 @@ import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 
 /**
- * PvP points (config.yml -> pvp-points): a per-player currency earned from kills and KoTH captures
- * and lost on death. /pvppoints, %pvppoints_...% placeholders; other plugins (shops) spend it
- * with /pvppoints take. Stored in pvp-points.yml or in MySQL (config.yml -> database), which also
- * keeps a history of every change.
+ * PvP points (config.yml -> pvp-points): points that belong to factions. Members earn them for
+ * their faction with kills and KoTH captures and lose them by dying; admins add them through a
+ * player (/pvppoints add <player>, like the KoTH win rewards) and wipe them all with
+ * /pvppoints reset. %pvppoints_...% placeholders, also per faction for /f who. Stored in a YAML
+ * file or in MySQL (config.yml -> database), which also keeps a history of every change.
+ * Needs Factions.
  */
 class PvpPointsModule(private val plugin: KoTHPlugin) {
     /** Null when the module is off; see [disabledReason]. */
@@ -41,6 +44,12 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
             disabledReason = "disabled in config.yml ($ROOT.enabled)"
             return
         }
+        val factions = plugin.factionsHook
+        if (factions == null) {
+            disabledReason = "Factions is not installed (points belong to factions)"
+            plugin.logger.warning("[PvpPoints] Disabled: $disabledReason.")
+            return
+        }
 
         val store =
             try {
@@ -57,22 +66,19 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
                 return
             }
         this.store = store
-        plugin.server.pluginManager.registerEvents(PvpPointsListener(plugin, store), plugin)
-
-        // Players already online (the plugin was enabled while they played) never fire a join
-        val startingPoints = config.getInt("$ROOT.starting-points", 0)
-        plugin.server.onlinePlayers.forEach { store.track(it.uniqueId, it.name, startingPoints) }
+        refreshTags(store, factions)
+        registerListeners(store, factions)
 
         val interval = config.getLong("$ROOT.save-interval", 60).coerceAtLeast(MIN_SAVE_INTERVAL) * 20
         saveTask = plugin.server.scheduler.runTaskTimer(plugin, Runnable { periodic(store) }, interval, interval)
 
         if (plugin.placeholderAPIEnabled) {
-            val expansion = PvpPointsPlaceholders(store, plugin.description.version)
+            val expansion = PvpPointsPlaceholders(store, factions, plugin.description.version)
             expansion.register()
             unregisterPlaceholders = { expansion.unregister() }
         }
-        val where = if (mySqlStorage != null) "MySQL" else "pvp-points.yml"
-        plugin.logger.info("[PvpPoints] Enabled: ${store.trackedCount()} players, stored in $where.")
+        val where = if (mySqlStorage != null) "MySQL" else config.getString("$ROOT.storage-file", DEFAULT_FILE)
+        plugin.logger.info("[PvpPoints] Enabled: ${store.trackedCount()} faction(s), stored in $where.")
     }
 
     fun disable() {
@@ -85,8 +91,39 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
         database = null
     }
 
+    /** A faction renamed while the server was off: the top shows its current tag. */
+    private fun refreshTags(
+        store: PvpPointsStore,
+        factions: FactionsHook,
+    ) {
+        for (entry in store.entries()) {
+            val current = factions.factionById(entry.factionId) ?: continue
+            if (current.tag != entry.tag) store.rename(entry.factionId, current.tag)
+        }
+    }
+
+    private fun registerListeners(
+        store: PvpPointsStore,
+        factions: FactionsHook,
+    ) {
+        val pluginManager = plugin.server.pluginManager
+        pluginManager.registerEvents(PvpPointsListener(plugin, store, factions), plugin)
+        try {
+            pluginManager.registerEvents(PvpPointsRenameListener(plugin, store), plugin)
+        } catch (e: LinkageError) {
+            plugin.logger.warning(
+                "[PvpPoints] This Factions version has no FactionRenameEvent; renamed factions show their new tag after a restart.",
+            )
+        }
+        try {
+            pluginManager.registerEvents(PvpPointsDisbandListener(plugin, store), plugin)
+        } catch (e: LinkageError) {
+            plugin.logger.warning("[PvpPoints] This Factions version has no FactionDisbandEvent; disbanded factions keep their points.")
+        }
+    }
+
     private fun openStore(): PvpPointsStore {
-        val yamlFile = File(plugin.dataFolder, config.getString("$ROOT.storage-file", "pvp-points.yml"))
+        val yamlFile = File(plugin.dataFolder, config.getString("$ROOT.storage-file", DEFAULT_FILE))
         val type = config.getString("$ROOT.storage", "yaml").lowercase()
         if (type != "mysql") {
             if (type != "yaml") plugin.logger.warning("[PvpPoints] Unknown $ROOT.storage '$type'; using yaml.")
@@ -102,7 +139,7 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
         return store
     }
 
-    /** First start on MySQL with points in pvp-points.yml: copy them over and rename the file. */
+    /** First start on MySQL with points in the YAML file: copy them over and rename the file. */
     private fun importYaml(
         store: PvpPointsStore,
         storage: MySqlPvpPointsStorage,
@@ -110,11 +147,11 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
     ) {
         val entries = YamlPvpPointsStorage(yamlFile, plugin.logger).loadAll()
         if (entries.isEmpty()) return
-        storage.importAll(entries)
+        storage.importAll(entries, yamlFile.name)
         store.restore(entries)
         val done = File(yamlFile.parentFile, "${yamlFile.name}.imported")
         Files.move(yamlFile.toPath(), done.toPath())
-        plugin.logger.info("[PvpPoints] Copied ${entries.size} player(s) from ${yamlFile.name} to MySQL; the file is now ${done.name}.")
+        plugin.logger.info("[PvpPoints] Copied ${entries.size} faction(s) from ${yamlFile.name} to MySQL; the file is now ${done.name}.")
     }
 
     private fun periodic(store: PvpPointsStore) {
@@ -144,7 +181,8 @@ class PvpPointsModule(private val plugin: KoTHPlugin) {
     companion object {
         const val ROOT = "pvp-points"
         private const val MIN_SAVE_INTERVAL = 5L
-        private const val PENDING_FILE = "pvp-points-pending.yml"
+        const val DEFAULT_FILE = "pvp-faction-points.yml"
+        private const val PENDING_FILE = "pvp-faction-points-pending.yml"
     }
 }
 

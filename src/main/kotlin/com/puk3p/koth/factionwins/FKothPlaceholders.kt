@@ -1,5 +1,6 @@
 package com.puk3p.koth.factionwins
 
+import com.puk3p.koth.util.stripColorCodes
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import org.bukkit.OfflinePlayer
 import java.util.Objects
@@ -7,7 +8,9 @@ import java.util.Objects
 /**
  * %fkoth_...% placeholders, same names as the FKothWins addon so existing scoreboards keep working:
  * faction_name, faction_wins, faction_rank, top_size, top_<n>_name, top_<n>_wins,
- * player_faction_wins_<player>. Only instantiate when PlaceholderAPI is installed.
+ * player_faction_wins_<player>. Added: faction_wins_<tag> and faction_rank_<tag>, for SaberFactions'
+ * /f who: %fkoth_faction_wins_{faction}% (Factions fills in {faction} before PlaceholderAPI runs,
+ * with the relation color in front, which is ignored). Only instantiate when PlaceholderAPI is installed.
  */
 class FKothPlaceholders(
     private val service: FactionWinsService,
@@ -39,7 +42,17 @@ class FKothPlaceholders(
             return service.getWinsForFaction(faction).toString()
         }
 
-        when (params.lowercase()) {
+        val lower = params.lowercase()
+        if (lower.startsWith(WINS_BY_TAG)) {
+            val tag = stripColorCodes(params.substring(WINS_BY_TAG.length))
+            return if (tag.isEmpty()) "0" else service.getWinsForFaction(tag).toString()
+        }
+        if (lower.startsWith(RANK_BY_TAG)) {
+            val tag = stripColorCodes(params.substring(RANK_BY_TAG.length))
+            return tag.takeIf { it.isNotEmpty() }?.let { service.getRankForFaction(it) }?.toString() ?: "-"
+        }
+
+        when (lower) {
             "top_size" -> return service.trackedFactionCount().toString()
             "faction_name" -> return player?.let { service.factionOf(it.uniqueId) } ?: "-"
             "faction_wins" -> {
@@ -57,5 +70,10 @@ class FKothPlaceholders(
         val isName = match.groupValues[2] == "name"
         val entry = service.top(position).getOrNull(position - 1) ?: return if (isName) "-" else "0"
         return if (isName) entry.faction else entry.wins.toString()
+    }
+
+    private companion object {
+        const val WINS_BY_TAG = "faction_wins_"
+        const val RANK_BY_TAG = "faction_rank_"
     }
 }

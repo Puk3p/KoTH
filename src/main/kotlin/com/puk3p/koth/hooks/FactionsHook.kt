@@ -2,12 +2,27 @@ package com.puk3p.koth.hooks
 
 import com.massivecraft.factions.FPlayer
 import com.massivecraft.factions.FPlayers
+import com.massivecraft.factions.Faction
+import com.massivecraft.factions.Factions
+import com.puk3p.koth.util.stripColorCodes
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import java.util.UUID
 
 /** See [FactionsHook.relationBetween]. Its own class, so it loads without Factions installed. */
 enum class FactionRelation { SAME_FACTION, ALLY, NONE }
+
+/** A player-made faction (not Wilderness, SafeZone or WarZone): its [id] never changes, its [tag] can. */
+data class FactionRef(
+    val id: String,
+    val tag: String,
+)
+
+/** A player Factions knows, with their exact [name] and their faction (null when they have none). */
+data class FactionMember(
+    val name: String,
+    val faction: FactionRef?,
+)
 
 /**
  * Hook for the legacy Factions API (com.massivecraft.factions) used on 1.8.8 servers
@@ -115,6 +130,42 @@ class FactionsHook {
         }
     }
 
+    /** The player's faction, or null when they have none. */
+    fun factionOf(player: Player): FactionRef? = guarded { refOf(FPlayers.getInstance().getByPlayer(player)) }
+
+    /** Like [factionOf], for any player Factions knows, online or not. Never creates Factions data. */
+    fun factionOf(uuid: UUID): FactionRef? =
+        guarded {
+            val fPlayers = FPlayers.getInstance()
+            val fPlayer = Bukkit.getPlayer(uuid)?.let { fPlayers.getByPlayer(it) } ?: fPlayers.getById(uuid.toString())
+            fPlayer?.let { refOf(it) }
+        }
+
+    /**
+     * A player by name, online first, then in Factions' own player data (no Mojang lookups).
+     * Null when Factions has never seen a player with that name.
+     */
+    fun findMember(name: String): FactionMember? =
+        guarded {
+            val fPlayers = FPlayers.getInstance()
+            val online = Bukkit.getPlayerExact(name)
+            if (online != null) {
+                FactionMember(online.name, refOf(fPlayers.getByPlayer(online)))
+            } else {
+                findByName(name)?.let { FactionMember(it.name ?: name, refOf(it)) }
+            }
+        }
+
+    /** A faction by tag, ignoring case and color codes (/f who puts the relation color in front of it). */
+    fun factionByTag(tag: String): FactionRef? {
+        val plain = stripColorCodes(tag)
+        if (plain.isEmpty()) return null
+        return guarded { refOf(Factions.getInstance().getByTag(plain)) }
+    }
+
+    /** A faction by id, or null if it no longer exists. */
+    fun factionById(id: String): FactionRef? = guarded { refOf(Factions.getInstance().getFactionById(id)) }
+
     private fun findByName(name: String): FPlayer? {
         return FPlayers.getInstance().allFPlayers.firstOrNull { it.name.equals(name, ignoreCase = true) }
     }
@@ -124,6 +175,26 @@ class FactionsHook {
         val faction = fPlayer.faction
         if (faction.isWilderness) return null
         return faction.tag?.trim()?.takeIf { it.isNotEmpty() && !it.equals("wilderness", ignoreCase = true) }
+    }
+
+    private fun refOf(fPlayer: FPlayer): FactionRef? = if (fPlayer.hasFaction()) refOf(fPlayer.faction) else null
+
+    private fun refOf(faction: Faction?): FactionRef? {
+        if (faction == null || !faction.isNormal) return null
+        val tag = faction.tag?.trim().orEmpty()
+        if (tag.isEmpty()) return null
+        return FactionRef(faction.id, tag)
+    }
+
+    /** Runs a Factions call; null if the installed Factions fork doesn't match the API we compiled against. */
+    private inline fun <T> guarded(block: () -> T?): T? {
+        return try {
+            block()
+        } catch (e: Exception) {
+            null
+        } catch (e: LinkageError) {
+            null
+        }
     }
 
     companion object {

@@ -12,7 +12,7 @@ import java.util.logging.Level
 /**
  * /fkoth (alias /fkw), carried over from the FKothWins addon:
  * add <player> <n>, remove <faction> <n>, set <faction> <n>, reload, debug, sethologram (fkoth.admin);
- * stats, top (fkoth.player).
+ * reset [confirm] (fkoth.reset); stats, top (fkoth.player).
  */
 class FkothCommand(
     private val plugin: KoTHPlugin,
@@ -33,6 +33,7 @@ class FkothCommand(
         val sub = args.firstOrNull()?.lowercase()
         val permission =
             when (sub) {
+                "reset" -> RESET_PERMISSION
                 in ADMIN_SUBCOMMANDS -> ADMIN_PERMISSION
                 in PLAYER_SUBCOMMANDS -> PLAYER_PERMISSION
                 else -> {
@@ -59,6 +60,7 @@ class FkothCommand(
             "reload" -> reload(sender)
             "debug" -> debug(sender)
             "sethologram" -> setHologram(sender)
+            "reset" -> reset(sender, label, args, service)
             "stats" -> stats(sender, service)
             "top" -> top(sender, service)
         }
@@ -112,6 +114,28 @@ class FkothCommand(
         }
         apply(args[1], amount)
         sender.sendMessage(message("$action-success", "%amount%" to amount.toString(), "%faction%" to args[1]))
+    }
+
+    /** /fkoth reset shows what would be wiped; /fkoth reset confirm does it. */
+    private fun reset(
+        sender: CommandSender,
+        label: String,
+        args: Array<String>,
+        service: FactionWinsService,
+    ) {
+        val all = service.top(Int.MAX_VALUE)
+        val total = all.sumOf { it.wins.toLong() }.toString()
+        if (all.isEmpty()) {
+            sender.sendMessage(message("reset-nothing"))
+            return
+        }
+        if (!args.getOrNull(1).equals("confirm", ignoreCase = true)) {
+            sender.sendMessage(message("reset-confirm", "%factions%" to all.size.toString(), "%wins%" to total, "%label%" to label))
+            return
+        }
+        val reset = service.resetAll()
+        plugin.logger.info("[FKoth] ${sender.name} reset the KoTH wins of $reset faction(s) ($total win(s) in total).")
+        sender.sendMessage(message("reset-success", "%factions%" to reset.toString(), "%wins%" to total))
     }
 
     private fun reload(sender: CommandSender) {
@@ -204,7 +228,10 @@ class FkothCommand(
                     buildList {
                         if (sender.hasPermission(PLAYER_PERMISSION)) addAll(PLAYER_SUBCOMMANDS)
                         if (isAdmin) addAll(ADMIN_SUBCOMMANDS)
+                        if (sender.hasPermission(RESET_PERMISSION)) add("reset")
                     }
+                args.size == 2 && args[0].equals("reset", ignoreCase = true) && sender.hasPermission(RESET_PERMISSION) ->
+                    listOf("confirm")
                 !isAdmin || args.size != 2 -> emptyList()
                 args[0].equals("add", ignoreCase = true) -> Bukkit.getOnlinePlayers().map { it.name }
                 args[0].equals("remove", ignoreCase = true) || args[0].equals("set", ignoreCase = true) ->
@@ -218,6 +245,7 @@ class FkothCommand(
     companion object {
         const val ADMIN_PERMISSION = "fkoth.admin"
         const val PLAYER_PERMISSION = "fkoth.player"
+        const val RESET_PERMISSION = "fkoth.reset"
 
         private val ADMIN_SUBCOMMANDS = listOf("add", "remove", "set", "reload", "debug", "sethologram")
         private val PLAYER_SUBCOMMANDS = listOf("stats", "top")

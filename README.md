@@ -1,6 +1,6 @@
 # 🚩 KoTH (King of the Hill)
 
-A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.8.8**. Faction capture, an LMS-style KOTH Arena event, faction win tracking (`/fkoth`), a PvP points currency (`/pvppoints`), a selection wand with particle preview, per-type protections and rewards, a weekly scheduler, PlaceholderAPI, DecentHolograms and Discord webhooks.
+A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.8.8**. Faction capture, an LMS-style KOTH Arena event, faction win tracking (`/fkoth`), PvP points per faction (`/pvppoints`), a selection wand with particle preview, per-type protections and rewards, a weekly scheduler, PlaceholderAPI, DecentHolograms and Discord webhooks.
 
 [![Build](https://github.com/Puk3p/KoTH/actions/workflows/build.yml/badge.svg)](https://github.com/Puk3p/KoTH/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/Puk3p/KoTH)](https://github.com/Puk3p/KoTH/releases/latest)
@@ -36,7 +36,7 @@ A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.
 - **Knock behavior** — `PAUSE` (the next holder continues where it stopped) or `RESET` (the timer starts over). A maximum run time ends an uncaptured KoTH as a draw, so it never blocks later ones.
 - **KOTH Arena** — An LMS-style event: `/koth join` before the start, invincibility and command lock until the fight, one life, a post-capture countdown and a teleport out.
 - **Faction KoTH wins** — Every capture adds a win to the winner's faction: `/fkoth top` and `stats`, a DecentHolograms top hologram, placeholders and an API other plugins (e.g. DinoFtop) read from. Built in; replaces the old FKothWins addon.
-- **PvP points** — A per-player currency: points for kills and KoTH captures, lost on death, with anti-farm (same IP, same faction, allies, repeat kills). `/pvppoints`, top and placeholders; shops spend it with `/pvppoints take`. Stored in a file or in MySQL with a full history of every change.
+- **PvP points** — Points that belong to factions: members earn them with kills and KoTH captures and lose them by dying, with anti-farm (same IP, same faction, allies, repeat kills). Admins add them through a player (`/pvppoints add <player>`, the player's faction gets them) and wipe them with `/pvppoints reset`. Top, rank and per-faction placeholders, also for `/f who`. Stored in a file or in MySQL with a full history of every change.
 - **Selection wand** — `/koth wand`: left / right click two corner blocks. The selection is drawn in particles, visible only to you.
 - **Protections** — Per-type zone flags for block breaking / placing, buckets, enderpearls, fall damage, lava / water flow, TNT and pistons.
 - **Command restrictions** — `BLACKLIST` or `WHITELIST` commands (`/f home`, `/spawn`, `/ec`, ...) for players standing in a running zone.
@@ -53,7 +53,7 @@ A King of the Hill plugin for competitive faction servers on **Spigot / Paper 1.
 | | Type | Notes |
 |---|---|---|
 | Spigot / Paper 1.8.8 | Required | Java 8 or newer. Kotlin is bundled in the jar. |
-| Factions (FactionsUUID or SaberFactions) | Optional | Legacy `com.massivecraft.factions` API. Needed for faction capture and faction wins; without it every player captures alone. |
+| Factions (FactionsUUID or SaberFactions) | Optional | Legacy `com.massivecraft.factions` API. Needed for faction capture, faction wins and PvP points; without it every player captures alone and PvP points are off. |
 | MySQL 5.7+ / MariaDB 10.2+ | Optional | PvP points storage with history (`pvp-points.storage: mysql`). The driver is bundled. |
 | PlaceholderAPI | Optional | `%koth_...%` and `%fkoth_...%` placeholders, PlaceholderAPI placeholders in reward commands. |
 | DecentHolograms | Optional | The faction wins top hologram. |
@@ -85,9 +85,9 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `/koth leave` | `koth.join` | Leave the KOTH Arena. You can't rejoin the same event. |
 | `/fkoth stats` | `fkoth.player` | Your faction's KoTH wins. |
 | `/fkoth top` | `fkoth.player` | Top factions by KoTH wins. |
-| `/pvppoints` | `pvppoints.player` | Your PvP points and rank. |
-| `/pvppoints <player>` | `pvppoints.player` | Someone else's PvP points. |
-| `/pvppoints top` | `pvppoints.player` | Top players by PvP points. |
+| `/pvppoints` | `pvppoints.player` | Your faction's PvP points and rank. |
+| `/pvppoints <player\|faction>` | `pvppoints.player` | Another faction's points (a player name means their faction). |
+| `/pvppoints top` | `pvppoints.player` | Top factions by PvP points. |
 
 ### Admins
 
@@ -112,10 +112,12 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `/fkoth set <faction> <n>` | `fkoth.admin` | Set a faction's wins. |
 | `/fkoth sethologram` | `fkoth.admin` | Place the top factions hologram at your position. |
 | `/fkoth reload` / `debug` | `fkoth.admin` | Reload the faction wins settings / show the status of every integration. |
-| `/pvppoints give <player> <n>` | `pvppoints.admin` | Give PvP points. |
-| `/pvppoints take <player> <n>` | `pvppoints.admin` | Take PvP points; fails without taking anything if the player has fewer. |
-| `/pvppoints set <player> <n>` | `pvppoints.admin` | Set a player's PvP points. |
-| `/pvppoints history <player> [n]` | `pvppoints.admin` | A player's latest point changes and why (MySQL storage). |
+| `/fkoth reset [confirm]` | `fkoth.reset` | End of a wipe: delete every faction's wins. Without `confirm` it only shows what would be deleted. |
+| `/pvppoints add <player> <n>` | `pvppoints.admin` | Add points to the player's faction, online or offline (`give` still works). |
+| `/pvppoints take <player\|faction> <n>` | `pvppoints.admin` | Take points from a faction; fails without taking anything if it has fewer. |
+| `/pvppoints set <player\|faction> <n>` | `pvppoints.admin` | Set a faction's points. |
+| `/pvppoints history <player\|faction> [n]` | `pvppoints.admin` | A faction's latest point changes, who they went through and why (MySQL storage). |
+| `/pvppoints reset [confirm]` | `pvppoints.reset` | End of a wipe: every faction's points back to 0. Without `confirm` it only shows what would be reset. |
 
 `/fkoth` also has the alias `/fkw`, and `/pvppoints` has `/pvpp`.
 
@@ -133,9 +135,11 @@ Updating: replace the jar and restart. Messages added in a new version work righ
 | `koth.join` | everyone | `/koth join` and `/koth leave`. |
 | `koth.bypass` | op | Ignore zone protections, command restrictions and the KOTH Arena command lock. |
 | `fkoth.admin` | op | `/fkoth add`, `remove`, `set`, `reload`, `debug`, `sethologram`. |
+| `fkoth.reset` | op | `/fkoth reset`. |
 | `fkoth.player` | everyone | `/fkoth stats` and `/fkoth top`. |
-| `pvppoints.admin` | op | `/pvppoints give`, `take`, `set`, `history`. |
-| `pvppoints.player` | everyone | `/pvppoints`, `/pvppoints <player>`, `/pvppoints top`. |
+| `pvppoints.admin` | op | `/pvppoints add`, `take`, `set`, `history`. |
+| `pvppoints.reset` | op | `/pvppoints reset`. |
+| `pvppoints.player` | everyone | `/pvppoints`, `/pvppoints <player\|faction>`, `/pvppoints top`. |
 
 ---
 
@@ -222,7 +226,7 @@ types:
       captured: { sound: "LEVEL_UP", volume: 1.0, pitch: 1.0 }
 
     rewards:
-      pvp-points: 25             # PvP points for the capturer (0 = none)
+      pvp-points: 25             # PvP points for the capturer's faction (0 = none)
       mode: "ALL"                # ALL runs every command; CHANCE rolls each one's chance (percent)
       commands:
         - command: "give %player% diamond 16"
@@ -325,6 +329,7 @@ Every capture adds one win to the capturer's faction.
 - A top factions hologram with DecentHolograms, placed with `/fkoth sethologram`.
 - Wins follow a faction when it changes its tag and are removed when it disbands (if the Factions version has those events; `/fkoth debug` shows it).
 - Other plugins read the wins through the `FKothApi` service (see [Developer API](#-developer-api)).
+- At the end of a wipe, `/fkoth reset confirm` deletes every faction's wins.
 
 ```yaml
 faction-wins:
@@ -349,24 +354,26 @@ faction-wins:
 
 ## ⚔️ PvP Points (/pvppoints)
 
-A currency per player, stored in `plugins/KoTH/pvp-points.yml`.
+Points that belong to factions (needs Factions), stored in `plugins/KoTH/pvp-faction-points.yml` or MySQL. A player only ever earns or loses points for their faction; players without a faction earn and lose nothing.
 
-- **Kills** — The killer gets `kill-reward`.
-- **Deaths** — The victim loses `death-penalty`: a fixed `amount` plus a `percent` of their balance, never below 0. With `only-player-kills: false`, deaths without a killer (fall, lava, ...) cost points too.
-- **Anti-farm** — No points for killing a player on the same IP, from your faction or an allied one, or the same player again within `same-victim-cooldown`. Such a kill doesn't cost the victim anything either, and the killer is told why.
-- **KoTH captures** — The capturer gets `types.<type>.rewards.pvp-points` (by default 25 for `koth`, 75 for `superkoth`, 50 for `arena`).
-- **Spending** — Shops and other plugins run `/pvppoints take <player> <amount>` from the console. It takes nothing and reports it when the player has fewer points, so check `%pvppoints_points%` in the shop's requirement first.
+- **Kills** — The killer's faction gets `kill-reward`.
+- **Deaths** — The victim's faction loses `death-penalty`: a fixed `amount` plus a `percent` of the faction's points, never below 0. With `only-player-kills: false`, deaths without a killer (fall, lava, ...) cost points too.
+- **Anti-farm** — No points for killing a player on the same IP, from your faction or an allied one, or the same player again within `same-victim-cooldown`. Such a kill doesn't cost the victim's faction anything either, and the killer is told why.
+- **KoTH captures** — The capturer's faction gets `types.<type>.rewards.pvp-points` (by default 25 for `koth`, 75 for `superkoth`, 50 for `arena`).
+- **Admin commands** — `/pvppoints add <player> <amount>` gives the points to that player's faction, like the KoTH win rewards (online or offline, looked up in Factions' data). `take` and `set` take a player or a faction tag. `take` changes nothing and says so when the faction has fewer points, so shops can run it from the console.
+- **Renames and disbands** — Points are kept by Factions id, so they follow a faction that changes its tag. A faction that disbands loses its points (`delete-on-faction-disband`).
+- **Wipe** — At the end of a season run `/pvppoints reset confirm` (and `/fkoth reset confirm` for the KoTH wins). Every faction goes back to 0; with MySQL each reset faction gets a `RESET` line in the history.
 
 ```yaml
 pvp-points:
   enabled: true                  # restart to apply
   storage: "yaml"                # yaml or mysql; restart to apply
-  storage-file: "pvp-points.yml"
+  storage-file: "pvp-faction-points.yml"
   save-interval: 60              # yaml: seconds between saves (off the main thread), plus on shutdown
   history-retention-days: 0      # mysql: delete history older than this (0 = keep forever)
-  starting-points: 0             # for a player's first join
-  kill-reward: 10
-  death-penalty:
+  delete-on-faction-disband: true
+  kill-reward: 10                # for the killer's faction; 0 = none
+  death-penalty:                 # for the victim's faction; both 0 = deaths cost nothing
     amount: 5
     percent: 0.0
     only-player-kills: true
@@ -379,11 +386,27 @@ pvp-points:
   top-size: 10
 ```
 
-Players are found by name if they're online or joined since PvP points were enabled; there are no Mojang lookups.
+### Showing the points in /f who
+
+SaberFactions fills in its own tags such as `{faction}` before it runs PlaceholderAPI, so the shown faction's tag can go inside a placeholder. Add lines like these to `show:` in SaberFactions' `config.yml`:
+
+```yaml
+  - '&4* &cPvP Points: &f%pvppoints_faction_points_{faction}% &8(&7%pvppoints_faction_rank_formatted_{faction}%&8)'
+  - '&4* &cKoTH Wins: &f%fkoth_faction_wins_{faction}%'
+```
+
+The relation color SaberFactions puts in front of `{faction}` is ignored.
+
+### Coming from 1.1.2 (points per player)
+
+1.1.2 kept points per player. Those points are not converted; faction points start at 0:
+
+- the old `pvp-points.yml` is left alone (the default file is now `pvp-faction-points.yml`; a config that still points `storage-file` at the old file has it renamed to `pvp-points.yml.per-player` instead of being overwritten);
+- the old MySQL tables `koth_pvp_points` and `koth_pvp_points_log` are not touched; drop them whenever you like.
 
 ### Storage: YAML or MySQL
 
-- **`yaml`** (default) — `plugins/KoTH/pvp-points.yml`, rewritten every `save-interval` seconds if anything changed (to a temporary file first, so a crash never leaves half a file), and on shutdown. No history.
+- **`yaml`** (default) — `plugins/KoTH/pvp-faction-points.yml`, rewritten every `save-interval` seconds if anything changed (to a temporary file first, so a crash never leaves half a file), and on shutdown. No history.
 - **`mysql`** — the `database` section of `config.yml`, with a history of every change. Tables are created and upgraded automatically.
 
 ```yaml
@@ -402,19 +425,19 @@ database:
 
 | Table | Contents |
 |---|---|
-| `koth_pvp_points` | One row per player: `uuid`, `name`, `points`, `created_at`, `updated_at` |
-| `koth_pvp_points_log` | One row per change: `uuid`, `name`, `delta`, `balance` after it, `reason` (`START`, `KILL`, `DEATH`, `CAPTURE`, `GIVE`, `TAKE`, `SET`, `IMPORT`), `detail` (victim, killer, arena or admin), `created_at` |
+| `koth_pvp_faction_points` | One row per faction: `faction_id` (the Factions id), `tag`, `points`, `created_at`, `updated_at` |
+| `koth_pvp_faction_points_log` | One row per change: `faction_id`, `tag`, `delta`, `balance` after it, `reason` (`KILL`, `DEATH`, `CAPTURE`, `ADD`, `TAKE`, `SET`, `RESET`, `DISBAND`, `IMPORT`), `player` (the member it went through: killer, victim, capturer, the player named in `add`), `detail` (victim, killer, arena or who ran the command), `created_at` |
 | `koth_schema_version` | The tables' version, so later plugin versions can upgrade them |
 
 Times are epoch milliseconds: `FROM_UNIXTIME(created_at / 1000)` shows them in MySQL.
 
 How it stays exact:
 
-- **One server owns the table.** It keeps every balance in memory (so `/pvppoints take` and placeholders answer instantly) and writes each change as the new total, in order, on one background thread. Writing a change twice gives the same total, so retries are safe.
+- **One server owns the table.** It keeps every faction's points in memory (so `/pvppoints take` and placeholders answer instantly) and writes each change as the new total, in order, on one background thread. Writing a change twice gives the same total, so retries are safe.
 - **Each batch of changes and its history lines are one transaction**: both are saved or neither.
-- **If MySQL goes down**, the server keeps working from memory and retries every few seconds (up to 30). If it stops before MySQL is back, the waiting changes go to `pvp-points-pending.yml` and are written first on the next start.
+- **If MySQL goes down**, the server keeps working from memory and retries every few seconds (up to 30). If it stops before MySQL is back, the waiting changes go to `pvp-faction-points-pending.yml` and are written first on the next start.
 - **If MySQL can't be reached at start** (or the login is wrong), PvP points stay off with an error in the console instead of starting from zero; nothing is changed.
-- **Switching from `yaml` to `mysql`**: on the first start with an empty table, `pvp-points.yml` is copied over (history reason `IMPORT`) and renamed to `pvp-points.yml.imported`.
+- **Switching from `yaml` to `mysql`**: on the first start with an empty table, `pvp-faction-points.yml` is copied over (history reason `IMPORT`) and renamed to `pvp-faction-points.yml.imported`.
 
 ---
 
@@ -475,9 +498,20 @@ Capture embeds show the winner's head (`https://mc-heads.net/avatar/<player>/100
 
 When nothing is running, the name, state and time placeholders return `placeholders.none` from `messages.yml`; counts return `0`.
 
-`%fkoth_<placeholder>%`: `faction_name`, `faction_wins`, `faction_rank`, `top_size`, `top_<n>_name`, `top_<n>_wins`, `player_faction_wins_<player>` (same names as the FKothWins addon).
+`%fkoth_<placeholder>%`: `faction_name`, `faction_wins`, `faction_rank`, `top_size`, `top_<n>_name`, `top_<n>_wins`, `player_faction_wins_<player>` (same names as the FKothWins addon), plus `faction_wins_<tag>` and `faction_rank_<tag>` for any faction (`%fkoth_faction_wins_{faction}%` in `/f who`).
 
-`%pvppoints_<placeholder>%`: `points`, `points_formatted` (`1,234`), `rank` (`-` with no points), `top_<n>_name`, `top_<n>_points`.
+`%pvppoints_<placeholder>%`, all about factions:
+
+| Placeholder | Value | Example |
+|---|---|---|
+| `faction` | The viewer's faction | `Viper` |
+| `points`, `points_formatted` | The viewer's faction's points | `1234`, `1,234` |
+| `rank`, `rank_formatted` | Its place in the top | `3`, `#3` |
+| `top_<n>_name`, `top_<n>_points`, `top_<n>_points_formatted` | Any place in the top: `top_1` … `top_3`, `top_5`, ... | `Viper`, `1234` |
+| `faction_points_<tag>`, `faction_points_formatted_<tag>` | Any faction's points, by tag (`{faction}` in `/f who`) | `850` |
+| `faction_rank_<tag>`, `faction_rank_formatted_<tag>` | Any faction's place in the top | `2`, `#2` |
+
+Nothing to show (no faction, no points, an empty place in the top) gives `-` for names and ranks and `0` for points.
 
 ---
 

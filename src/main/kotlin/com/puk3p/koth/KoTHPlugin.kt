@@ -51,7 +51,7 @@ class KoTHPlugin : JavaPlugin() {
     lateinit var factionWins: FactionWinsModule
         private set
 
-    /** PvP points: per-player currency (/pvppoints). */
+    /** PvP points: points per faction (/pvppoints). */
     lateinit var pvpPoints: PvpPointsModule
         private set
 
@@ -116,7 +116,7 @@ class KoTHPlugin : JavaPlugin() {
             it.setTabCompleter(fkothCommand)
         }
 
-        // 9. PvP points: per-player currency from kills and captures, /pvppoints, %pvppoints_...%
+        // 9. PvP points: per faction, from kills, deaths, captures and /pvppoints add; %pvppoints_...%
         pvpPoints = PvpPointsModule(this)
         pvpPoints.enable()
         val pvpPointsCommand = PvpPointsCommand(this, pvpPoints)

@@ -9,7 +9,6 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Locale
-import java.util.UUID
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Consumer
@@ -17,15 +16,17 @@ import java.util.logging.Level
 import java.util.logging.Logger
 
 /**
- * pvp-points in a YAML file (pvp-points.storage: yaml), no history:
+ * Faction pvp-points in a YAML file (pvp-points.storage: yaml), no history:
  * ```
- * players:
- *   <uuid>:
- *     name: "Puk3p"
- *     points: 120
+ * factions:
+ * - id: "12"
+ *   tag: "Warriors"
+ *   points: 120
  * ```
+ * A list rather than keys, because Bukkit would read a dot in a key as a nested section.
  * The whole file is rewritten every save-interval if anything changed, off the main thread,
- * and on disable.
+ * and on disable. A file from 1.1.2 (points per player, under `players:`) is kept aside as
+ * `<file>.per-player` and the faction points start empty.
  */
 class YamlPvpPointsStorage(
     private val file: File,
@@ -44,7 +45,7 @@ class YamlPvpPointsStorage(
 
     override val keepsHistory: Boolean = false
 
-    override fun loadAll(): List<PvpPointsEntry> {
+    override fun loadAll(): List<FactionPointsEntry> {
         file.parentFile?.let { Files.createDirectories(it.toPath()) }
         if (!file.exists()) return emptyList()
 
@@ -52,24 +53,38 @@ class YamlPvpPointsStorage(
         try {
             yaml.loadFromString(String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8))
         } catch (e: InvalidConfigurationException) {
-            // Starting empty would overwrite everyone's points at the next save
+            // Starting empty would overwrite every faction's points at the next save
             throw IOException("${file.name} is not valid YAML; fix it or restore a backup", e)
         }
-        val section = yaml.getConfigurationSection("players") ?: return emptyList()
-        val entries = ArrayList<PvpPointsEntry>()
-        for (key in section.getKeys(false)) {
-            val uuid =
-                try {
-                    UUID.fromString(key)
-                } catch (e: IllegalArgumentException) {
-                    logger.warning("${file.name}: skipping '$key', not a player UUID.")
-                    continue
-                }
-            val player = section.getConfigurationSection(key) ?: continue
-            val name = player.getString("name")?.trim().orEmpty().ifEmpty { key }
-            entries += PvpPointsEntry(uuid, name, player.getInt("points", 0).coerceAtLeast(0))
+        if (!yaml.contains("factions") && yaml.isConfigurationSection("players")) {
+            keepPerPlayerFile()
+            return emptyList()
+        }
+
+        val entries = ArrayList<FactionPointsEntry>()
+        for (map in yaml.getMapList("factions")) {
+            val id = map["id"]?.toString()?.trim().orEmpty()
+            if (id.isEmpty()) {
+                logger.warning("${file.name}: skipping an entry without an id: $map")
+                continue
+            }
+            val tag = map["tag"]?.toString()?.trim().orEmpty().ifEmpty { id }
+            val points = (map["points"] as? Number)?.toLong()?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt() ?: 0
+            entries += FactionPointsEntry(id, tag, points)
         }
         return entries
+    }
+
+    /** The 1.1.2 per-player file: moved aside, never overwritten. */
+    private fun keepPerPlayerFile() {
+        var target = File(file.parentFile, "${file.name}.per-player")
+        var n = 2
+        while (target.exists()) target = File(file.parentFile, "${file.name}.per-player-${n++}")
+        Files.move(file.toPath(), target.toPath())
+        logger.warning(
+            "[PvpPoints] ${file.name} has points per player (KoTH 1.1.2). Points now belong to factions, so it was " +
+                "renamed to ${target.name} and faction points start at 0.",
+        )
     }
 
     override fun record(change: PointsChange) {
@@ -77,7 +92,7 @@ class YamlPvpPointsStorage(
     }
 
     override fun flush(
-        snapshot: () -> Collection<PvpPointsEntry>,
+        snapshot: () -> Collection<FactionPointsEntry>,
         runWrite: Executor,
     ) {
         val current = version.get()
@@ -87,12 +102,12 @@ class YamlPvpPointsStorage(
         runWrite.execute { write(current, content) }
     }
 
-    override fun close(snapshot: () -> Collection<PvpPointsEntry>) {
+    override fun close(snapshot: () -> Collection<FactionPointsEntry>) {
         flush(snapshot) { it.run() }
     }
 
     override fun history(
-        uuid: UUID,
+        factionId: String,
         limit: Int,
         callbackThread: Executor,
         callback: Consumer<List<HistoryEntry>?>,
@@ -100,14 +115,13 @@ class YamlPvpPointsStorage(
         callbackThread.execute { callback.accept(emptyList()) }
     }
 
-    private fun serialize(entries: Collection<PvpPointsEntry>): String {
+    private fun serialize(entries: Collection<FactionPointsEntry>): String {
         val yaml = YamlConfiguration()
-        val section = yaml.createSection("players")
-        for (entry in entries.sortedBy { it.name.lowercase(Locale.ROOT) }) {
-            val player = section.createSection(entry.uuid.toString())
-            player.set("name", entry.name)
-            player.set("points", entry.points)
-        }
+        val list =
+            entries.sortedBy { it.tag.lowercase(Locale.ROOT) }.map {
+                linkedMapOf<String, Any>("id" to it.factionId, "tag" to it.tag, "points" to it.points)
+            }
+        yaml.set("factions", list)
         return yaml.saveToString()
     }
 

@@ -33,7 +33,7 @@ discord:
 #             MySQL / MariaDB                #
 # ========================================== #
 # Used by pvp-points when pvp-points.storage is "mysql". Tables are created automatically
-# (<table-prefix>pvp_points, <table-prefix>pvp_points_log, <table-prefix>schema_version).
+# (<table-prefix>pvp_faction_points, <table-prefix>pvp_faction_points_log, <table-prefix>schema_version).
 # Keep the real password only in the server's copy of this file.
 database:
   host: "localhost"
@@ -89,34 +89,38 @@ faction-wins:
 # ========================================== #
 #           PvP points (/pvppoints)          #
 # ========================================== #
-# A per-player currency. Earned from kills and KoTH captures (types.<type>.rewards.pvp-points),
-# lost on death. Shops and other plugins spend it with "/pvppoints take <player> <amount>", which
-# fails without taking anything if the player has fewer points. Placeholders: %pvppoints_points%,
-# %pvppoints_rank%, %pvppoints_top_1_name%, ... enabled and storage-file need a restart; the rest
-# applies on /koth reload.
+# Points that belong to factions (needs Factions). Members earn them for their faction with kills
+# and KoTH captures (types.<type>.rewards.pvp-points) and lose them by dying; players without a
+# faction earn and lose nothing. Admins and the console: /pvppoints add <player> <amount> gives
+# them to that player's faction; take and set work the same way (or with a faction tag); take
+# fails without taking anything if the faction has fewer. End of a wipe: /pvppoints reset confirm.
+# Placeholders: %pvppoints_points%, %pvppoints_rank_formatted% (#3), %pvppoints_top_1_name%, ...
+# and %pvppoints_faction_points_{faction}% in SaberFactions' /f who.
+# enabled, storage and storage-file need a restart; the rest applies on /koth reload.
 pvp-points:
   enabled: true
-  # yaml: plugins/KoTH/pvp-points.yml. mysql: the database section below, plus a history of every
-  # change (/pvppoints history). Switching to mysql copies pvp-points.yml over on the first start.
-  # One server per table: this server keeps the balances in memory and is the only one writing them.
+  # yaml: plugins/KoTH/<storage-file>. mysql: the database section above, plus a history of every
+  # change (/pvppoints history). Switching to mysql copies the file over on the first start.
+  # One server per table: this server keeps the points in memory and is the only one writing them.
   storage: "yaml"
-  storage-file: "pvp-points.yml"
+  storage-file: "pvp-faction-points.yml"
   # yaml: seconds between saves of the file (off the main thread), plus on shutdown.
   # mysql: every change is written right away; this is how often old history is cleaned up.
   save-interval: 60
   # mysql: delete history older than this many days (0 = keep it forever)
   history-retention-days: 0
-  # Points a player has the first time they join
-  starting-points: 0
-  # Points the killer gets for a kill that counts (see anti-farm)
+  # A faction that disbands loses its points
+  delete-on-faction-disband: true
+  # Points the killer's faction gets for a kill that counts (see anti-farm); 0 = none
   kill-reward: 10
-  # What the victim loses when a kill counts: amount + percent of their balance (never below 0)
+  # What the victim's faction loses when a kill counts: amount + percent of the faction's points
+  # (never below 0). Both 0 = deaths cost nothing.
   death-penalty:
     amount: 5
     percent: 0.0
-    # false: players also lose points when they die without a killer (fall, lava, ...)
+    # false: factions also lose points when a member dies without a killer (fall, lava, ...)
     only-player-kills: true
-  # A kill blocked here gives the killer nothing and costs the victim nothing
+  # A kill blocked here gives the killer's faction nothing and costs the victim's faction nothing
   anti-farm:
     # Seconds before killing the same player gives points again (0 = no limit)
     same-victim-cooldown: 600
@@ -209,7 +213,7 @@ koth-arena:
 #   sounds                  1.8 sound names, with volume and pitch
 #   rewards                 mode ALL runs every command; CHANCE rolls each one's chance (percent).
 #                           Placeholders: %player%, %arena%, %faction%, %type% and PlaceholderAPI's.
-#                           pvp-points: points the capturer gets (0 = none; see pvp-points above).
+#                           pvp-points: points the capturer's faction gets (0 = none; see pvp-points above).
 types:
   # ======================================== #
   # Standard KoTH                            #

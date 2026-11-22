@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.sql.Connection
 import java.sql.SQLException
-import java.util.UUID
 import java.util.concurrent.Executor
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.function.Consumer
@@ -16,11 +15,12 @@ import java.util.logging.Level
 import java.util.logging.Logger
 
 /**
- * pvp-points in MySQL (pvp-points.storage: mysql), with a history of every change.
+ * Faction pvp-points in MySQL (pvp-points.storage: mysql), with a history of every change.
  *
  * Tables (prefix from database.table-prefix):
- * - `pvp_points`: one row per player (uuid, name, points), the current balance;
- * - `pvp_points_log`: one row per change (delta, balance after it, reason, detail, time).
+ * - `pvp_faction_points`: one row per faction (Factions id, tag, points), the current balance;
+ * - `pvp_faction_points_log`: one row per change (delta, balance after it, reason, member, detail, time).
+ * The per-player tables of 1.1.2 (`pvp_points`, `pvp_points_log`) are left as they are.
  *
  * One server writes the table, so the balances in memory are the truth and every change is
  * stored as the new balance: writing it twice (a retry) gives the same result. Changes go to MySQL
@@ -35,8 +35,8 @@ class MySqlPvpPointsStorage(
     private val logger: Logger,
     private val pendingFile: File,
 ) : PvpPointsStorage {
-    private val points = database.table("pvp_points")
-    private val log = database.table("pvp_points_log")
+    private val points = database.table("pvp_faction_points")
+    private val log = database.table("pvp_faction_points_log")
 
     private val queue = LinkedBlockingQueue<Task>()
     private val worker = Thread({ runWorker() }, "KoTH-PvpPoints-MySQL").apply { isDaemon = true }
@@ -62,23 +62,16 @@ class MySqlPvpPointsStorage(
     }
 
     /** Creates or updates the tables, writes changes left over from the last shutdown, then reads every balance. */
-    override fun loadAll(): List<PvpPointsEntry> {
+    override fun loadAll(): List<FactionPointsEntry> {
         database.migrate(COMPONENT, schema())
         replayPending()
 
-        val entries = ArrayList<PvpPointsEntry>()
+        val entries = ArrayList<FactionPointsEntry>()
         database.connection().use { c ->
-            c.prepareStatement("SELECT uuid, name, points FROM $points").use { ps ->
+            c.prepareStatement("SELECT faction_id, tag, points FROM $points").use { ps ->
                 ps.executeQuery().use { rs ->
                     while (rs.next()) {
-                        val uuid =
-                            try {
-                                UUID.fromString(rs.getString(1))
-                            } catch (e: IllegalArgumentException) {
-                                logger.warning("[PvpPoints] Skipping a row of $points with an invalid uuid '${rs.getString(1)}'.")
-                                continue
-                            }
-                        entries += PvpPointsEntry(uuid, rs.getString(2), rs.getInt(3).coerceAtLeast(0))
+                        entries += FactionPointsEntry(rs.getString(1), rs.getString(2), rs.getInt(3).coerceAtLeast(0))
                     }
                 }
             }
@@ -87,10 +80,14 @@ class MySqlPvpPointsStorage(
         return entries
     }
 
-    /** Copies balances from pvp-points.yml into an empty table (switching from yaml to mysql). Blocking. */
-    fun importAll(entries: Collection<PvpPointsEntry>) {
+    /** Copies balances from the YAML file into an empty table (switching from yaml to mysql). Blocking. */
+    fun importAll(
+        entries: Collection<FactionPointsEntry>,
+        source: String,
+    ) {
         val now = System.currentTimeMillis()
-        val changes = entries.map { PointsChange(it.uuid, it.name, it.points, it.points, PointsReason.IMPORT, "pvp-points.yml", now) }
+        val changes =
+            entries.map { PointsChange(it.factionId, it.tag, it.points, it.points, PointsReason.IMPORT, null, source, now) }
         changes.chunked(BATCH_SIZE).forEach { writeBatch(it) }
     }
 
@@ -100,11 +97,11 @@ class MySqlPvpPointsStorage(
 
     // Changes are written as they happen; nothing to do on the save timer.
     override fun flush(
-        snapshot: () -> Collection<PvpPointsEntry>,
+        snapshot: () -> Collection<FactionPointsEntry>,
         runWrite: Executor,
     ) = Unit
 
-    override fun close(snapshot: () -> Collection<PvpPointsEntry>) {
+    override fun close(snapshot: () -> Collection<FactionPointsEntry>) {
         stopping = true
         queue.put(Task.Stop)
         synchronized(retryLock) { retryLock.notifyAll() }
@@ -122,7 +119,7 @@ class MySqlPvpPointsStorage(
     }
 
     override fun history(
-        uuid: UUID,
+        factionId: String,
         limit: Int,
         callbackThread: Executor,
         callback: Consumer<List<HistoryEntry>?>,
@@ -133,13 +130,22 @@ class MySqlPvpPointsStorage(
                 action = { c ->
                     val lines = ArrayList<HistoryEntry>()
                     c.prepareStatement(
-                        "SELECT delta, balance, reason, detail, created_at FROM $log WHERE uuid = ? ORDER BY id DESC LIMIT ?",
+                        "SELECT delta, balance, reason, player, detail, created_at FROM $log WHERE faction_id = ? " +
+                            "ORDER BY id DESC LIMIT ?",
                     ).use { ps ->
-                        ps.setString(1, uuid.toString())
+                        ps.setString(1, factionId)
                         ps.setInt(2, limit)
                         ps.executeQuery().use { rs ->
                             while (rs.next()) {
-                                lines += HistoryEntry(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getLong(5))
+                                lines +=
+                                    HistoryEntry(
+                                        rs.getInt(1),
+                                        rs.getInt(2),
+                                        rs.getString(3),
+                                        rs.getString(4),
+                                        rs.getString(5),
+                                        rs.getLong(6),
+                                    )
                             }
                         }
                     }
@@ -243,12 +249,12 @@ class MySqlPvpPointsStorage(
             c.autoCommit = false
             try {
                 c.prepareStatement(
-                    "INSERT INTO $points (uuid, name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
-                        "ON DUPLICATE KEY UPDATE name = VALUES(name), points = VALUES(points), updated_at = VALUES(updated_at)",
+                    "INSERT INTO $points (faction_id, tag, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
+                        "ON DUPLICATE KEY UPDATE tag = VALUES(tag), points = VALUES(points), updated_at = VALUES(updated_at)",
                 ).use { ps ->
                     for (change in batch) {
-                        ps.setString(1, change.uuid.toString())
-                        ps.setString(2, change.name.take(NAME_LENGTH))
+                        ps.setString(1, change.factionId)
+                        ps.setString(2, change.tag.take(TAG_LENGTH))
                         ps.setInt(3, change.balance)
                         ps.setLong(4, change.time)
                         ps.setLong(5, change.time)
@@ -259,16 +265,18 @@ class MySqlPvpPointsStorage(
                 val logged = batch.filter { it.reason.logged }
                 if (logged.isNotEmpty()) {
                     c.prepareStatement(
-                        "INSERT INTO $log (uuid, name, delta, balance, reason, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO $log (faction_id, tag, delta, balance, reason, player, detail, created_at) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     ).use { ps ->
                         for (change in logged) {
-                            ps.setString(1, change.uuid.toString())
-                            ps.setString(2, change.name.take(NAME_LENGTH))
+                            ps.setString(1, change.factionId)
+                            ps.setString(2, change.tag.take(TAG_LENGTH))
                             ps.setInt(3, change.delta)
                             ps.setInt(4, change.balance)
                             ps.setString(5, change.reason.name)
-                            ps.setString(6, change.detail?.take(DETAIL_LENGTH))
-                            ps.setLong(7, change.time)
+                            ps.setString(6, change.player?.take(PLAYER_LENGTH))
+                            ps.setString(7, change.detail?.take(DETAIL_LENGTH))
+                            ps.setLong(8, change.time)
                             ps.addBatch()
                         }
                         ps.executeBatch()
@@ -325,11 +333,12 @@ class MySqlPvpPointsStorage(
 
     private fun toMap(change: PointsChange): Map<String, Any?> =
         linkedMapOf(
-            "uuid" to change.uuid.toString(),
-            "name" to change.name,
+            "faction_id" to change.factionId,
+            "tag" to change.tag,
             "delta" to change.delta,
             "balance" to change.balance,
             "reason" to change.reason.name,
+            "player" to change.player,
             "detail" to change.detail,
             "time" to change.time,
         )
@@ -337,11 +346,12 @@ class MySqlPvpPointsStorage(
     private fun fromMap(map: Map<*, *>): PointsChange? {
         return try {
             PointsChange(
-                uuid = UUID.fromString(map["uuid"].toString()),
-                name = map["name"].toString(),
+                factionId = map["faction_id"]!!.toString(),
+                tag = map["tag"]!!.toString(),
                 delta = (map["delta"] as Number).toInt(),
                 balance = (map["balance"] as Number).toInt(),
                 reason = PointsReason.valueOf(map["reason"].toString()),
+                player = map["player"]?.toString(),
                 detail = map["detail"]?.toString(),
                 time = (map["time"] as Number).toLong(),
             )
@@ -356,34 +366,38 @@ class MySqlPvpPointsStorage(
             // Version 1
             listOf(
                 "CREATE TABLE IF NOT EXISTS $points (" +
-                    "uuid CHAR(36) NOT NULL PRIMARY KEY, " +
-                    "name VARCHAR($NAME_LENGTH) NOT NULL, " +
+                    "faction_id VARCHAR($ID_LENGTH) NOT NULL PRIMARY KEY, " +
+                    "tag VARCHAR($TAG_LENGTH) NOT NULL, " +
                     "points INT NOT NULL DEFAULT 0, " +
                     "created_at BIGINT NOT NULL, " +
                     "updated_at BIGINT NOT NULL, " +
                     "INDEX idx_points (points), " +
-                    "INDEX idx_name (name)" +
+                    "INDEX idx_tag (tag)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
                 "CREATE TABLE IF NOT EXISTS $log (" +
                     "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, " +
-                    "uuid CHAR(36) NOT NULL, " +
-                    "name VARCHAR($NAME_LENGTH) NOT NULL, " +
+                    "faction_id VARCHAR($ID_LENGTH) NOT NULL, " +
+                    "tag VARCHAR($TAG_LENGTH) NOT NULL, " +
                     "delta INT NOT NULL, " +
                     "balance INT NOT NULL, " +
                     "reason VARCHAR(16) NOT NULL, " +
+                    "player VARCHAR($PLAYER_LENGTH) NULL, " +
                     "detail VARCHAR($DETAIL_LENGTH) NULL, " +
                     "created_at BIGINT NOT NULL, " +
-                    "INDEX idx_player_time (uuid, created_at), " +
+                    "INDEX idx_faction_time (faction_id, created_at), " +
+                    "INDEX idx_player (player), " +
                     "INDEX idx_time (created_at)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             ),
         )
 
     companion object {
-        const val COMPONENT = "pvp-points"
+        const val COMPONENT = "pvp-faction-points"
         private const val BATCH_SIZE = 200
         private const val DELETE_STEP = 5000
-        private const val NAME_LENGTH = 32
+        private const val ID_LENGTH = 36
+        private const val TAG_LENGTH = 32
+        private const val PLAYER_LENGTH = 32
         private const val DETAIL_LENGTH = 64
         private const val FIRST_RETRY_MILLIS = 1000L
         private const val MAX_RETRY_MILLIS = 30_000L
