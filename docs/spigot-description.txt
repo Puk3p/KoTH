@@ -1,0 +1,53 @@
+[CENTER][SIZE=7][B]KoTH — King of the Hill[/B][/SIZE]
+[SIZE=4]Advanced, faction-aware King of the Hill, built for large 1.8.8 servers.[/SIZE]
+
+[URL=https://github.com/Puk3p/KoTH]GitHub[/URL] • [URL=https://github.com/Puk3p/KoTH/blob/main/README.md]Full documentation[/URL][/CENTER]
+
+[SIZE=5][B]❱ What it does[/B][/SIZE]
+Run scheduled or manual KoTH events where whole factions fight to hold a zone. Capturing rewards the faction, feeds a persistent win leaderboard and a PvP-points economy, and everything plugs into scoreboards, holograms, Discord and [B]/f who[/B].
+
+[SIZE=5][B]❱ Features[/B][/SIZE]
+[LIST]
+[*][B]Faction capture[/B] — a whole faction holds the zone together (needs SaberFactions); the zone is only contested when a rival team steps in. Works solo without Factions too.
+[*][B]Unlimited KoTH types[/B] — define your own in config: capture time, knock behaviour (pause/reset), zone protections, in-zone command limits, rewards, sounds and visuals.
+[*][B]Scheduler[/B] — weekly start slots per arena with [B]/koth schedule[/B]; auto-skips when too few players are online.
+[*][B]KOTH Arena (LMS event)[/B] — a join phase, invincibility until the start, allowed-command lock, arena & exit teleports, and a minimum-players check.
+[*][B]Rewards[/B] — ALL or CHANCE mode, full PlaceholderAPI support in reward commands.
+[*][B]Visuals[/B] — action bar, titles, capture fireworks and 1.8 sounds, all configurable per type.
+[*][B]Faction KoTH Wins (/fkoth)[/B] — a persistent per-faction win counter, top list, optional DecentHolograms Top-5 hologram, and an FKothApi service that DinoFtop reads. Imports automatically from the old FKothWins addon.
+[*][B]PvP Points (/pvppoints)[/B] — points that belong to factions: earned from kills and captures, lost on death, with anti-farm (same IP, same faction, allies, repeat-kill cooldown). Admins give or take them through a player, and wipe them at season end.
+[*][B]Storage[/B] — YAML or MySQL. MySQL keeps a full history of every point change and is ready for a website or Discord bot.
+[*][B]Discord webhooks[/B] — start / capture / end embeds with the winner's head.
+[*][B]Placeholders everywhere[/B] — scoreboards, holograms and SaberFactions' [B]/f who[/B] (per-faction points, rank and wins).
+[/LIST]
+
+[SIZE=5][B]❱ Requirements[/B][/SIZE]
+[LIST]
+[*]Spigot / Paper [B]1.8.8[/B]
+[*][I]Optional:[/I] SaberFactions (faction features), PlaceholderAPI, DecentHolograms (hologram), Multiverse-Core (extra worlds)
+[*]Integrates with DinoFtop through the FKothApi service
+[/LIST]
+
+[SIZE=5][B]❱ Commands[/B][/SIZE]
+[LIST]
+[*][B]/koth[/B] — events, arenas, scheduling, KOTH Arena join/leave
+[*][B]/fkoth[/B] — faction KoTH wins: top, stats, hologram, wipe reset
+[*][B]/pvppoints[/B] — faction PvP points: balance, top, add/take/set, history, wipe reset
+[/LIST]
+Every command lists only what the sender has permission for. Full command and permission tables are in the [URL=https://github.com/Puk3p/KoTH/blob/main/README.md]README[/URL].
+
+[SIZE=5][B]❱ Placeholders[/B][/SIZE]
+[CODE]%koth_active%, %koth_time_left%, %koth_next%, %koth_next_in%
+%fkoth_faction_wins%, %fkoth_top_1_name%, %fkoth_faction_wins_{faction}%
+%pvppoints_points%, %pvppoints_rank_formatted%, %pvppoints_top_1_name%
+%pvppoints_faction_points_{faction}%  (drop it into /f who)[/CODE]
+
+[SIZE=5][B]❱ Setup[/B][/SIZE]
+[LIST=1]
+[*]Drop the jar in [B]plugins/[/B] and restart.
+[*]Make a zone: [B]/koth wand[/B] → select two corners → [B]/koth create <name> <type>[/B].
+[*]Tune your types, rewards and schedule in [B]config.yml[/B] / [B]arenas.yml[/B].
+[*][I]Optional:[/I] set [B]pvp-points.storage: mysql[/B] and your database details for history.
+[/LIST]
+
+[CENTER][SIZE=3]Found a bug or want a feature? Open an issue on [URL=https://github.com/Puk3p/KoTH/issues]GitHub[/URL].[/SIZE][/CENTER]
